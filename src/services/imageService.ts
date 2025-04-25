@@ -1,4 +1,4 @@
-import imageData from '../data/images.json';
+import imageData from '../../images.json';
 
 export interface Image {
   id: string;
@@ -9,11 +9,19 @@ export interface Image {
 }
 
 export const getAllImages = (): Image[] => {
-  return imageData.images;
+  // Map the JSON data to our Image interface, correcting the paths
+  return imageData.images.map((img, index) => ({
+    id: String(index),
+    title: img.name || `Image ${index + 1}`,
+    // Use just the filename without the A/A/ path prefix
+    src: `/${img.name}`,
+    ratio: img.ratio || '2:3',
+    category: 'Leonardo AI'
+  }));
 };
 
 export const getImageById = (id: string): Image | undefined => {
-  return imageData.images.find(image => image.id === id);
+  return getAllImages().find(image => image.id === id);
 };
 
 // export const getImagesByCategory = (category: string): Image[] => {
