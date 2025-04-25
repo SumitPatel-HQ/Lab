@@ -6,7 +6,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Set your password here - current password: 2000
-  const PASSWORD = "";
+  const PASSWORD = "2000";
   
   // Add additional security by resetting auth state when window gains focus
   useEffect(() => {
