@@ -9,6 +9,11 @@ export default {
         'card-appear': 'cardAppear 0.5s ease-out forwards',
         'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
         'slide-in': 'slideIn 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        'modal-in': 'modalIn 0.3s ease-out forwards',
+        'modal-out': 'modalOut 0.2s ease-in forwards',
+        'image-zoom-in': 'imageZoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+        'image-zoom-out': 'imageZoomOut 0.3s ease-out forwards',
+        'fade-in': 'fadeIn 0.3s ease-out forwards',
       },
       keyframes: {
         dropdownOpen: {
@@ -29,6 +34,26 @@ export default {
           '0%': { opacity: 0, transform: 'translate(-50%, -50%) scale(0.85)' },
           '100%': { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
         },
+        modalIn: {
+          '0%': { opacity: 0 },
+          '100%': { opacity: 1 },
+        },
+        modalOut: {
+          '0%': { opacity: 1 },
+          '100%': { opacity: 0 },
+        },
+        imageZoomIn: {
+          '0%': { opacity: 0, transform: 'scale(0.9)' },
+          '100%': { opacity: 1, transform: 'scale(1)' },
+        },
+        imageZoomOut: {
+          '0%': { opacity: 1, transform: 'scale(1)' },
+          '100%': { opacity: 0, transform: 'scale(0.9)' },
+        },
+        fadeIn: {
+          '0%': { opacity: 0 },
+          '100%': { opacity: 1 },
+        },
       },
       transitionProperty: {
         'transform-opacity': 'transform, opacity',
@@ -38,5 +63,18 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.hide-scrollbar': {
+          '-ms-overflow-style': 'none',
+          'scrollbar-width': 'none',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+        },
+      };
+      addUtilities(newUtilities);
+    },
+  ],
 };

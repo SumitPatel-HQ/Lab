@@ -1,5 +1,5 @@
 // local image gallery
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Shuffle, Library } from 'lucide-react';
 import ImageCard from './ImageCard';
 import ImageGrid from './ImageGrid';
@@ -7,21 +7,29 @@ import { getAllImages, type Image as ImageType } from '../services/imageService'
 
 const MAX_VISIBLE_INDICATORS = 8; // Maximum number of indicators to show
 const PRELOAD_IMAGES = 3; // Reduced from 5 to 3 to improve performance
+const SWIPE_THRESHOLD = 50; // Minimum swipe distance to trigger navigation
+const VELOCITY_THRESHOLD = 0.3; // Minimum velocity to trigger a swipe (pixels/ms)
+const SWIPE_RESISTANCE = 0.35; // Resistance factor for more natural swipe feeling
 
 const ImageGallery: React.FC = () => {
-  const [images, setImages] = React.useState<ImageType[]>([]);
-  const [currentIndex, setCurrentIndex] = React.useState(0);
-  const [touchStart, setTouchStart] = React.useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = React.useState<number | null>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const [showGrid, setShowGrid] = React.useState(false);
-  const [hideTimeout, setHideTimeout] = React.useState<number | null>(null);
-  const [visibleImageIndices, setVisibleImageIndices] = React.useState<number[]>([]);
-  const [isTransitioning, setIsTransitioning] = React.useState(false);
-  const [shuffleLoading, setShuffleLoading] = React.useState(false);
-  const [preloadedSrc, setPreloadedSrc] = React.useState<string | null>(null);
+  const [images, setImages] = useState<ImageType[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [showGrid, setShowGrid] = useState(false);
+  const [hideTimeout, setHideTimeout] = useState<number | null>(null);
+  const [visibleImageIndices, setVisibleImageIndices] = useState<number[]>([]);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [shuffleLoading, setShuffleLoading] = useState(false);
+  const [preloadedSrc, setPreloadedSrc] = useState<string | null>(null);
   const prevIndexRef = useRef(currentIndex);
+  const touchStartRef = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number | null>(null);
+  const lastTouchXRef = useRef<number | null>(null);
+  const velocityRef = useRef<number>(0);
+  const animationFrameIdRef = useRef<number | null>(null);
   const imagesLoaded = useRef(false);
+  const galleryRef = useRef<HTMLDivElement>(null);
 
   // Use memo to prevent unnecessary re-renders of image data
   const getImages = useCallback(async () => {
@@ -92,13 +100,22 @@ const ImageGallery: React.FC = () => {
       setIsTransitioning(true);
       const timer = setTimeout(() => {
         setIsTransitioning(false);
-      }, 700); // Match this with the transition duration
+      }, 500); // Reduce transition duration for better responsiveness
       
       prevIndexRef.current = currentIndex;
       
       return () => clearTimeout(timer);
     }
   }, [currentIndex]);
+
+  // Clean up any animations when component unmounts
+  useEffect(() => {
+    return () => {
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
+  }, []);
 
   // Preload images function
   const preloadImage = useCallback((src: string) => {
@@ -163,6 +180,7 @@ const ImageGallery: React.FC = () => {
     setCurrentIndex(prev => (prev === images.length - 1 ? 0 : prev + 1));
   };
 
+  // Improved random image function
   const randomImage = () => {
     // Prevent clicking if already transitioning or loading
     if (isTransitioning || shuffleLoading) return;
@@ -198,7 +216,7 @@ const ImageGallery: React.FC = () => {
       ];
       setVisibleImageIndices(adjacentIndices);
       
-      // Wait for a frame to apply the DOM updates
+      // Update with requestAnimationFrame for smoother transitions
       requestAnimationFrame(() => {
         // Start the transition animation 
         setIsTransitioning(true);
@@ -227,28 +245,182 @@ const ImageGallery: React.FC = () => {
     imgLoader.src = newImageSrc;
   };
 
+  // New swipe handling with smoother animations using requestAnimationFrame
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
+    // Prevent handling touch if we're in a transition
+    if (isTransitioning) return;
+    
+    // Cancel any ongoing animation
+    if (animationFrameIdRef.current !== null) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
+    }
+    
+    const touch = e.targetTouches[0].clientX;
+    touchStartRef.current = touch;
+    lastTouchXRef.current = touch;
+    touchStartTimeRef.current = Date.now();
+    velocityRef.current = 0;
     setIsDragging(true);
+    setDragOffset(0);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    if (isDragging) {
-      setTouchEnd(e.targetTouches[0].clientX);
+    if (!isDragging || touchStartRef.current === null || isTransitioning) return;
+    
+    const currentTouch = e.targetTouches[0].clientX;
+    const deltaX = currentTouch - touchStartRef.current;
+    
+    // Track velocity for momentum-based swiping
+    if (lastTouchXRef.current !== null) {
+      const timeDelta = Date.now() - (touchStartTimeRef.current || Date.now());
+      if (timeDelta > 0) {
+        const instantVelocity = (currentTouch - lastTouchXRef.current) / timeDelta;
+        // Smooth velocity using exponential moving average
+        velocityRef.current = velocityRef.current * 0.7 + instantVelocity * 0.3;
+      }
+    }
+    lastTouchXRef.current = currentTouch;
+    
+    // Apply resistance to make swipe feel more natural
+    const resistedDeltaX = deltaX * SWIPE_RESISTANCE;
+    
+    // Update the drag offset for UI feedback
+    setDragOffset(resistedDeltaX);
+    
+    // Prevent default to stop page scrolling if we're clearly swiping horizontally
+    if (Math.abs(deltaX) > 10) {
+      e.preventDefault();
     }
   };
 
-  const onTouchEnd = () => {
-    setIsDragging(false);
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-    if (isLeftSwipe) nextImage();
-    else if (isRightSwipe) prevImage();
-    setTouchStart(null);
-    setTouchEnd(null);
+  const animateSwipeReset = () => {
+    // Get the starting offset
+    const startOffset = dragOffset;
+    const startTime = performance.now();
+    const duration = 300;
+    
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Use easing function for natural movement (ease-out)
+      const easeOutProgress = 1 - Math.pow(1 - progress, 3);
+      
+      // Calculate new position
+      const newOffset = startOffset * (1 - easeOutProgress);
+      
+      // Update position
+      setDragOffset(newOffset);
+      
+      // Continue animation if not complete
+      if (progress < 1) {
+        animationFrameIdRef.current = requestAnimationFrame(animate);
+      } else {
+        // Animation complete - reset everything
+        setDragOffset(0);
+        animationFrameIdRef.current = null;
+      }
+    };
+    
+    // Start the animation
+    animationFrameIdRef.current = requestAnimationFrame(animate);
   };
+
+  const animateSwipeCompletion = (direction: 'left' | 'right') => {
+    // Get the starting offset
+    const startOffset = dragOffset;
+    const targetOffset = direction === 'left' ? -window.innerWidth : window.innerWidth;
+    const startTime = performance.now();
+    const duration = 250;
+    
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Use easing function for natural movement (ease-in)
+      const easeInProgress = progress * progress;
+      
+      // Calculate new position
+      const newOffset = startOffset + (targetOffset - startOffset) * easeInProgress;
+      
+      // Update position
+      setDragOffset(newOffset);
+      
+      // Continue animation if not complete
+      if (progress < 1) {
+        animationFrameIdRef.current = requestAnimationFrame(animate);
+      } else {
+        // Animation complete
+        setDragOffset(0);
+        animationFrameIdRef.current = null;
+        
+        // Change the image
+        if (direction === 'left') {
+          nextImage();
+        } else {
+          prevImage();
+        }
+      }
+    };
+    
+    // Start the animation
+    animationFrameIdRef.current = requestAnimationFrame(animate);
+  };
+
+  const onTouchEnd = () => {
+    if (!isDragging || touchStartRef.current === null || isTransitioning) {
+      setIsDragging(false);
+      return;
+    }
+    
+    const touchEnd = lastTouchXRef.current;
+    const deltaX = touchEnd === null || touchStartRef.current === null ? 0 : touchEnd - touchStartRef.current;
+    const touchDuration = Date.now() - (touchStartTimeRef.current || Date.now());
+    
+    // Detect swipe based on distance and velocity
+    const velocity = Math.abs(velocityRef.current);
+    const isQuickSwipe = velocity > VELOCITY_THRESHOLD;
+    const effectiveThreshold = isQuickSwipe ? SWIPE_THRESHOLD * 0.7 : SWIPE_THRESHOLD;
+    
+    setIsDragging(false);
+    
+    // Determine if we should complete the swipe or reset
+    if (Math.abs(deltaX) >= effectiveThreshold || isQuickSwipe) {
+      // Complete the swipe with animation
+      animateSwipeCompletion(deltaX < 0 ? 'left' : 'right');
+    } else {
+      // Not enough movement, animate back to center
+      animateSwipeReset();
+    }
+    
+    // Reset touch tracking
+    touchStartRef.current = null;
+    lastTouchXRef.current = null;
+    touchStartTimeRef.current = null;
+    velocityRef.current = 0;
+  };
+
+  // For keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showGrid) return;
+      
+      switch (e.key) {
+        case 'ArrowLeft':
+          prevImage();
+          break;
+        case 'ArrowRight':
+          nextImage();
+          break;
+        default:
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showGrid, isTransitioning]);
 
   // Calculate visible indicators
   const visibleIndicators = React.useMemo(() => {
@@ -278,15 +450,49 @@ const ImageGallery: React.FC = () => {
     }
 
     return Array.from({ length: endIndex - startIndex + 1 }, (_, i) => startIndex + i);
-  }, [currentIndex, images.length, MAX_VISIBLE_INDICATORS]);
-  // Calculate the number of images to show in the grid
+  }, [currentIndex, images.length]);
 
   if (showGrid) {
     return <ImageGrid images={images} onClose={() => setShowGrid(false)} />;
   }
 
+  // Function to make drag-based navigation more interactive with better performance
+  const getTransformStyle = (index: number) => {
+    if (!isDragging || dragOffset === 0) return '';
+    
+    // Only apply drag effect to the active image and adjacent ones
+    const diff = index - currentIndex;
+    
+    // Handle circular navigation (for images at the edges)
+    const adjustedDiff = diff === images.length - 1 ? -1 : diff === -(images.length - 1) ? 1 : diff;
+    
+    if (Math.abs(adjustedDiff) > 1) return '';
+    
+    if (adjustedDiff === 0) {
+      // Main image - move with full offset
+      return `translateX(${dragOffset}px) scale(1)`;
+    } else if (adjustedDiff === -1 && dragOffset > 0) {
+      // Previous image coming in from left
+      const progress = Math.min(1, dragOffset / (window.innerWidth * 0.6));
+      const scale = 0.9 + progress * 0.1;
+      const translateX = -50 + dragOffset;
+      return `translateX(${translateX}px) scale(${scale})`;
+    } else if (adjustedDiff === 1 && dragOffset < 0) {
+      // Next image coming in from right
+      const progress = Math.min(1, -dragOffset / (window.innerWidth * 0.6));
+      const scale = 0.9 + progress * 0.1;
+      const translateX = 50 + dragOffset;
+      return `translateX(${translateX}px) scale(${scale})`;
+    }
+    
+    return '';
+  };
+
   return (
-    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 overflow-hidden">
+    <div 
+      ref={galleryRef}
+      className="fixed inset-0 flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 overflow-hidden"
+    >
       <div 
         className={`w-full h-full relative ${isTransitioning ? 'pointer-events-none' : ''}`}
         onTouchStart={onTouchStart}
@@ -310,16 +516,22 @@ const ImageGallery: React.FC = () => {
             <ChevronRight className="w-7 h-7 md:w-10 md:h-10" />
           </button>
           
-          <div className="relative w-full h-[85vh] md:h-[95vh]">
+          <div className="relative w-full h-[85vh] md:h-[95vh] will-change-transform">
             {visibleImageIndices.map(index => (
-              <ImageCard 
+              <div 
                 key={images[index].id}
-                image={images[index]}
-                index={index}
-                activeIndex={currentIndex}
-                totalImages={images.length}
-                isPreloaded={preloadedSrc === images[index].src}
-              />
+                style={{ transform: getTransformStyle(index) }}
+                className={`transition-transform ${isTransitioning ? 'duration-500 ease-out' : 'duration-0'}`}
+              >
+                <ImageCard 
+                  key={images[index].id}
+                  image={images[index]}
+                  index={index}
+                  activeIndex={currentIndex}
+                  totalImages={images.length}
+                  isPreloaded={preloadedSrc === images[index].src}
+                />
+              </div>
             ))}
           </div>
         </div>

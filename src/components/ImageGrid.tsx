@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ArrowLeft, LayoutGrid, ChevronDown } from 'lucide-react';
 import type { Image } from '../services/imageService';
+import ImageModal from './ImageModal';
 
 interface ImageGridProps {
   images: Image[];
@@ -16,9 +17,15 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const [layoutMode, setLayoutMode] = useState<'grid' | 'masonry'>('masonry');
   const [gridDensity, setGridDensity] = useState(5); // Default grid density (3 out of 5)
   const [forceUpdate, setForceUpdate] = useState(5); // Add force update state
+  const [selectedImage, setSelectedImage] = useState<Image | null>(null);
+  const [isDraggingSlider, setIsDraggingSlider] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const sliderTrackRef = useRef<HTMLDivElement>(null);
   const [newBatchLoaded, setNewBatchLoaded] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const observedElements = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Setup smooth scroll behavior when component mounts
   useEffect(() => {
@@ -47,6 +54,41 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   useEffect(() => {
     setVisibleImages(images.slice(0, IMAGES_PER_LOAD));
   }, [images]);
+
+  // Setup intersection observer for lazy loading
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    // Create a new IntersectionObserver
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          // Get the image element
+          const image = entry.target.querySelector('img');
+          if (image && image.dataset.src) {
+            // Load the actual image
+            image.src = image.dataset.src;
+            // Stop observing this element
+            observerRef.current?.unobserve(entry.target);
+          }
+        }
+      });
+    }, { 
+      rootMargin: '200px', // Start loading when image is within 200px
+      threshold: 0.1 // 10% visibility
+    });
+
+    // Observe all of our image containers
+    observedElements.current.forEach(element => {
+      observerRef.current?.observe(element);
+    });
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [visibleImages]);
   
   // Define loadMoreImages before it's used in the useEffect hook
   const loadMoreImages = useCallback(() => {
@@ -88,6 +130,78 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     
     return () => observer.disconnect();
   }, []);
+  
+  // Handle slider touch events
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setIsDraggingSlider(false);
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingSlider(false);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingSlider || !sliderTrackRef.current) return;
+      
+      updateSliderPosition(e.clientX);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isDraggingSlider || !sliderTrackRef.current) return;
+      
+      updateSliderPosition(e.touches[0].clientX);
+      e.preventDefault(); // Prevent scrolling while dragging
+    };
+
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isDraggingSlider]);
+
+  const updateSliderPosition = (clientX: number) => {
+    if (!sliderTrackRef.current) return;
+    
+    const track = sliderTrackRef.current;
+    const rect = track.getBoundingClientRect();
+    const trackWidth = rect.width;
+    const offsetX = clientX - rect.left;
+
+    // Calculate position percentage (0 to 1)
+    let percentage = Math.min(Math.max(0, offsetX / trackWidth), 1);
+    
+    // Convert to grid density (1 to 5)
+    const newDensity = Math.round(percentage * 4) + 1;
+    setGridDensity(newDensity);
+  };
+
+  const handleSliderTrackMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDraggingSlider(true);
+    updateSliderPosition(e.clientX);
+  };
+
+  const handleSliderTrackTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDraggingSlider(true);
+    updateSliderPosition(e.touches[0].clientX);
+  };
+
+  const handleSliderThumbMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDraggingSlider(true);
+  };
+
+  const handleSliderThumbTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    setIsDraggingSlider(true);
+  };
   
   const getGridClass = () => {
     if (layoutMode === 'masonry') {
@@ -166,7 +280,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     }
   };
   
-  // Specific labels for the slider based on layout mode
+  // This function is now unused since we're removing the titles
   const getDensityLabel = () => {
     return layoutMode === 'masonry' ? 'Columns' : 'Items per row';
   };
@@ -178,20 +292,79 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     return newBatchLoaded && index >= visibleImages.length - IMAGES_PER_LOAD;
   };
 
+  // Add modal functionality
+  const openModal = (image: Image) => {
+    setSelectedImage(image);
+  };
+
+  const closeModal = () => {
+    setSelectedImage(null);
+  };
+
+  // Navigation functions for the modal
+  const goToNextImage = useCallback(() => {
+    if (!selectedImage) return;
+    
+    const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
+    if (currentIndex === -1) return;
+    
+    const nextIndex = (currentIndex + 1) % visibleImages.length;
+    setSelectedImage(visibleImages[nextIndex]);
+  }, [selectedImage, visibleImages]);
+
+  const goToPrevImage = useCallback(() => {
+    if (!selectedImage) return;
+    
+    const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
+    if (currentIndex === -1) return;
+    
+    const prevIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
+    setSelectedImage(visibleImages[prevIndex]);
+  }, [selectedImage, visibleImages]);
+
+  // Handle reference for lazy loading
+  const setImageRef = useCallback((element: HTMLDivElement | null, id: string) => {
+    if (element) {
+      observedElements.current.set(id, element);
+      observerRef.current?.observe(element);
+    } else {
+      observedElements.current.delete(id);
+    }
+  }, []);
+
+  // Add touch swipe detection for the modal
+  const handleSwipeGesture = (direction: 'left' | 'right') => {
+    if (!selectedImage) return;
+    
+    const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
+    if (currentIndex === -1) return;
+    
+    if (direction === 'left') {
+      // Next image
+      const nextIndex = (currentIndex + 1) % visibleImages.length;
+      setSelectedImage(visibleImages[nextIndex]);
+    } else {
+      // Previous image
+      const prevIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
+      setSelectedImage(visibleImages[prevIndex]);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6 overscroll-none">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 backdrop-blur-md bg-gray-900/70">
+        {/* header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 px-4 backdrop-blur-md bg-indigo-1/10 rounded-full shadow-2xl">
           <button
             onClick={onClose}
             className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm transition-colors text-white"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Back</span>
+            <span className="hidden sm:block">Back</span>
           </button>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center bg-white/10 rounded-full backdrop-blur-sm p-2 px-3">
+            <div className="flex items-center bg-white/10 rounded-full backdrop-blur-sm p-2 px-2">
               <button
                 onClick={toggleLayout}
                 className="p-2 rounded-full bg-indigo-600 text-white"
@@ -207,18 +380,35 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               <button 
                 onClick={decreaseDensity}
                 disabled={gridDensity <= 1}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/30 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:bg-white/30"
                 aria-label="Decrease density"
               >
-                <span className="text-lg font-semibold">-</span>
+                <span className="text-lg leading-none flex items-center justify-center h-5">-</span>
               </button>
               
-              <div className="flex flex-col items-center">
-                <span className="text-xs text-white/70 mb-1">{getDensityLabel()}</span>
-                <div className="w-28 sm:w-36 h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full relative">
+              <div>
+                <div 
+                  ref={sliderTrackRef}
+                  className="w-28 sm:w-36 h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full relative cursor-pointer"
+                  onMouseDown={handleSliderTrackMouseDown}
+                  onTouchStart={handleSliderTrackTouchStart}
+                  role="slider"
+                  aria-valuemin={1}
+                  aria-valuemax={5}
+                  aria-valuenow={gridDensity}
+                  aria-label={layoutMode === 'masonry' ? 'Adjust column count' : 'Adjust items per row'}
+                  tabIndex={0}
+                >
                   <div 
-                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-md cursor-pointer"
-                    style={{ left: `calc(${(gridDensity - 1) * 25}%)` }}
+                    ref={sliderRef}
+                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-md cursor-pointer transition-all touch-action-none"
+                    style={{ 
+                      left: gridDensity === 5 
+                        ? 'calc(100% - 15px)' 
+                        : `calc(${(gridDensity - 1) * 25}%)`
+                    }}
+                    onMouseDown={handleSliderThumbMouseDown}
+                    onTouchStart={handleSliderThumbTouchStart}
                   />
                 </div>
               </div>
@@ -226,10 +416,10 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               <button 
                 onClick={increaseDensity}
                 disabled={gridDensity >= 5}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/30 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:bg-white/30"
                 aria-label="Increase density"
               >
-                <span className="text-lg font-semibold">+</span>
+                <span className="text-lg leading-none flex items-center justify-center h-5">+</span>
               </button>
             </div>
           </div>
@@ -248,59 +438,79 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
           {visibleImages.map((image, index) => (
             <div
               key={image.id}
-              className={`${getMasonryItemClass(image)} relative group overflow-hidden rounded-xl shadow-xl transition-all duration-500 ${
-                animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              } transform-gpu`}
+              ref={(el) => setImageRef(el, image.id)}
+              className={`${getMasonryItemClass(image)} ${
+                isNewlyLoaded(index) 
+                  ? 'animate-card-appear opacity-0' 
+                  : ''
+              } group`}
               style={{
-                transitionDelay: `${isNewlyLoaded(index) ? Math.min((index % IMAGES_PER_LOAD) * 30, 600) : Math.min((index % 20) * 30, 600)}ms`
+                animationDelay: `${Math.min(index % IMAGES_PER_LOAD * 50, 1000)}ms`,
               }}
+              onClick={() => openModal(image)}
             >
-              <div className={`relative ${
-                image.ratio === '2:3' ? 'aspect-[2/3]' : 'aspect-[3/2]'
-              }`}>
-                <img
-                  src={image.src}
-                  alt={image.title}
-                  loading="lazy"
-                  decoding="async"
-                  width="400"
-                  height={image.ratio === '2:3' ? 600 : 266}
-                  className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="absolute bottom-0 left-0 right-0 p-4 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                    <h3 className="text-white font-semibold text-lg">{image.title}</h3>
-                    <p className="text-white/80 text-sm">{image.category}</p>
-                  </div>
+              <div className="relative overflow-hidden rounded-lg shadow-md group-hover:shadow-xl transition-all duration-300 transform group-hover:scale-[1.02]">
+                <div className={`${image.ratio === '2:3' ? 'pb-[150%]' : 'pb-[66.67%]'} bg-gray-800 relative`}>
+                  <img 
+                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 opacity-0 hover:opacity-100"
+                    data-src={image.src}
+                    src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" // Tiny placeholder
+                    alt={image.title}
+                    loading="lazy"
+                    onLoad={(e) => {
+                      // When image is loaded from data-src, fade it in
+                      if ((e.target as HTMLImageElement).src !== "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E") {
+                        (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
+                      }
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                  <h3 className="text-white text-sm font-medium">{image.title}</h3>
                 </div>
               </div>
             </div>
           ))}
         </div>
         
-        {/* Load more button or indicator */}
-        <div 
-          ref={loadMoreRef} 
-          className="flex justify-center mt-8 pb-4"
-        >
-          {hasMoreImages ? (
+        {hasMoreImages && (
+          <div 
+            ref={loadMoreRef}
+            className="flex justify-center mt-8 mb-4"
+          >
             <button
               onClick={loadMoreImages}
               disabled={isLoading}
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white shadow-lg transition-all duration-300 hover:shadow-xl disabled:opacity-50"
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-2"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading...</span>
+                </>
               ) : (
-                <ChevronDown className="w-5 h-5" />
+                <>
+                  <span>Load More</span>
+                  <ChevronDown className="w-5 h-5" />
+                </>
               )}
-              <span>Load More Images</span>
             </button>
-          ) : visibleImages.length > 0 ? (
-            <p className="text-white/70 text-sm">All images loaded</p>
-          ) : null}
-        </div>
+          </div>
+        )}
       </div>
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <ImageModal 
+          image={selectedImage} 
+          onClose={closeModal}
+          onNext={goToNextImage}
+          onPrev={goToPrevImage}
+          totalImages={visibleImages.length}
+          currentIndex={visibleImages.findIndex(img => img.id === selectedImage.id)}
+        />
+      )}
     </div>
   );
 };

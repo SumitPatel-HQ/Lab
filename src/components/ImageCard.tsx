@@ -6,9 +6,10 @@ interface ImageCardProps {
   index: number;
   activeIndex: number;
   totalImages: number;
+  isPreloaded?: boolean;
 }
 
-const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalImages }) => {
+const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalImages, isPreloaded = false }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -24,6 +25,12 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
     setError(false);
     
     if (!isVisible) return;
+    
+    // Skip loading if image is already preloaded
+    if (isPreloaded) {
+      setLoaded(true);
+      return;
+    }
     
     const img = new Image();
     img.src = image.src;
@@ -41,7 +48,7 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
       img.onload = null;
       img.onerror = null;
     };
-  }, [image.src, isVisible]);
+  }, [image.src, isVisible, isPreloaded]);
 
   // Calculate position and rotation based on index relative to active index
   const getCardStyle = () => {
