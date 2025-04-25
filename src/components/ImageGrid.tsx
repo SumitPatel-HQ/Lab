@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, Grid2X2, Grid3X3, Grid, LayoutGrid, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { ArrowLeft, LayoutGrid, ChevronDown } from 'lucide-react';
 import type { Image } from '../services/imageService';
 
 interface ImageGridProps {
@@ -7,7 +7,7 @@ interface ImageGridProps {
   onClose: () => void;
 }
 
-const IMAGES_PER_LOAD = 50; // Number of images to load in each batch
+const IMAGES_PER_LOAD = 40; // Number of images to load in each batch
 
 const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const [animate, setAnimate] = useState(false);
@@ -16,6 +16,20 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const [layoutMode, setLayoutMode] = useState<'grid' | 'masonry'>('masonry');
   const [gridDensity, setGridDensity] = useState(5); // Default grid density (3 out of 5)
   const [forceUpdate, setForceUpdate] = useState(5); // Add force update state
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const [newBatchLoaded, setNewBatchLoaded] = useState(false);
+
+  // Setup smooth scroll behavior when component mounts
+  useEffect(() => {
+    // Set smooth scrolling for the entire document
+    document.documentElement.style.scrollBehavior = 'smooth';
+    
+    // Cleanup function to reset when component unmounts
+    return () => {
+      document.documentElement.style.scrollBehavior = '';
+    };
+  }, []);
   
   useEffect(() => {
     setAnimate(true);
@@ -34,23 +48,47 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     setVisibleImages(images.slice(0, IMAGES_PER_LOAD));
   }, [images]);
   
-  const loadMoreImages = () => {
+  // Define loadMoreImages before it's used in the useEffect hook
+  const loadMoreImages = useCallback(() => {
     if (isLoading || visibleImages.length >= images.length) return;
     
     setIsLoading(true);
+    setNewBatchLoaded(true);
     
-    const nextBatch = images.slice(
-      visibleImages.length, 
-      visibleImages.length + IMAGES_PER_LOAD
-    );
-    
-    // Use requestAnimationFrame for smoother loading
+    // Load exactly 40 more images when button is clicked
     requestAnimationFrame(() => {
-      setVisibleImages(prev => [...prev, ...nextBatch]);
-      setIsLoading(false);
+      const nextBatch = images.slice(
+        visibleImages.length, 
+        visibleImages.length + IMAGES_PER_LOAD
+      );
+      
+      // Small delay to prepare for animation
+      setTimeout(() => {
+        setVisibleImages(prev => [...prev, ...nextBatch]);
+        setIsLoading(false);
+        
+        // Reset the new batch loaded flag after animation completes
+        setTimeout(() => {
+          setNewBatchLoaded(false);
+        }, 1000);
+      }, 50);
     });
-  };
-
+  }, [isLoading, visibleImages.length, images]);
+  
+  // Setup intersection observer to detect when load more button is in view
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+      // Only scroll the button into view, but don't automatically load more images
+      // The actual loading happens when the user clicks the button
+    }, { rootMargin: '200px' }); // Show button before reaching bottom
+    
+    observer.observe(loadMoreRef.current);
+    
+    return () => observer.disconnect();
+  }, []);
+  
   const getGridClass = () => {
     if (layoutMode === 'masonry') {
       // For masonry, use explicit column classes based on density
@@ -111,13 +149,6 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     });
   };
   
-  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = Number(e.target.value);
-    setGridDensity(newValue);
-    // Force a re-render to apply grid changes immediately
-    setForceUpdate(prev => prev + 1);
-  };
-  
   // Add direct controls for density
   const decreaseDensity = () => {
     if (gridDensity > 1) {
@@ -142,10 +173,15 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   
   const hasMoreImages = visibleImages.length < images.length;
 
+  // Calculate if an image is newly loaded in this batch
+  const isNewlyLoaded = (index: number) => {
+    return newBatchLoaded && index >= visibleImages.length - IMAGES_PER_LOAD;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6 overscroll-none">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 backdrop-blur-md bg-gray-900/70">
           <button
             onClick={onClose}
             className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm transition-colors text-white"
@@ -166,7 +202,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               </button>
             </div>
             
-            {/* Replace slider with plus/minus buttons */}
+            {/* Density controls */}
             <div className="flex items-center gap-2 bg-white/10 rounded-full backdrop-blur-sm py-2 px-4">
               <button 
                 onClick={decreaseDensity}
@@ -177,11 +213,14 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
                 <span className="text-lg font-semibold">-</span>
               </button>
               
-              <div className="w-28 sm:w-36 h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full relative">
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-md cursor-pointer"
-                  style={{ left: `calc(${(gridDensity - 1) * 25}%)` }}
-                />
+              <div className="flex flex-col items-center">
+                <span className="text-xs text-white/70 mb-1">{getDensityLabel()}</span>
+                <div className="w-28 sm:w-36 h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full relative">
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-md cursor-pointer"
+                    style={{ left: `calc(${(gridDensity - 1) * 25}%)` }}
+                  />
+                </div>
               </div>
               
               <button 
@@ -198,21 +237,22 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
         
         {/* Use key to force re-render when layout or density changes */}
         <div 
+          ref={gridContainerRef}
           key={`${layoutMode}-${gridDensity}-${forceUpdate}`}
           className={`${
             layoutMode === 'grid' 
               ? `grid ${getGridClass()} ${getGridGapClass()}` 
               : getGridClass()
-          } w-full`}
+          } w-full will-change-transform`}
         >
           {visibleImages.map((image, index) => (
             <div
               key={image.id}
               className={`${getMasonryItemClass(image)} relative group overflow-hidden rounded-xl shadow-xl transition-all duration-500 ${
                 animate ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              }`}
+              } transform-gpu`}
               style={{
-                transitionDelay: `${(index % 20) * 30}ms`
+                transitionDelay: `${isNewlyLoaded(index) ? Math.min((index % IMAGES_PER_LOAD) * 30, 600) : Math.min((index % 20) * 30, 600)}ms`
               }}
             >
               <div className={`relative ${
@@ -222,6 +262,9 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
                   src={image.src}
                   alt={image.title}
                   loading="lazy"
+                  decoding="async"
+                  width="400"
+                  height={image.ratio === '2:3' ? 600 : 266}
                   className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -235,8 +278,12 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
           ))}
         </div>
         
-        {hasMoreImages && (
-          <div className="flex justify-center mt-8">
+        {/* Load more button or indicator */}
+        <div 
+          ref={loadMoreRef} 
+          className="flex justify-center mt-8 pb-4"
+        >
+          {hasMoreImages ? (
             <button
               onClick={loadMoreImages}
               disabled={isLoading}
@@ -247,10 +294,12 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               ) : (
                 <ChevronDown className="w-5 h-5" />
               )}
-              <span>Load More</span>
+              <span>Load More Images</span>
             </button>
-          </div>
-        )}
+          ) : visibleImages.length > 0 ? (
+            <p className="text-white/70 text-sm">All images loaded</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "23.11.0"
   NPM_FLAGS = "--version"
   # Disable Next.js plugin since this is a Vite project
   NETLIFY_NEXT_PLUGIN_SKIP = "true"

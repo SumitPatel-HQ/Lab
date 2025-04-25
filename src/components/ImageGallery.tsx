@@ -1,49 +1,63 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Grid, Shuffle, BookOpen, Library } from 'lucide-react';
+// local image gallery
+import React, { useEffect, useCallback, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Shuffle, Library } from 'lucide-react';
 import ImageCard from './ImageCard';
 import ImageGrid from './ImageGrid';
-import { getAllImages, Image } from '../services/imageService';
+import { getAllImages, type Image as ImageType } from '../services/imageService';
 
 const MAX_VISIBLE_INDICATORS = 8; // Maximum number of indicators to show
-const PRELOAD_IMAGES = 5; // Number of images to preload in each direction
+const PRELOAD_IMAGES = 3; // Reduced from 5 to 3 to improve performance
 
 const ImageGallery: React.FC = () => {
-  const [images, setImages] = useState<Image[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [showGrid, setShowGrid] = useState(false);
-  const [showFloatingButton, setShowFloatingButton] = useState(false);
-  const [hideTimeout, setHideTimeout] = useState<number | null>(null);
-  const [visibleImageIndices, setVisibleImageIndices] = useState<number[]>([]);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [images, setImages] = React.useState<ImageType[]>([]);
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [touchStart, setTouchStart] = React.useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = React.useState<number | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [showGrid, setShowGrid] = React.useState(false);
+  const [hideTimeout, setHideTimeout] = React.useState<number | null>(null);
+  const [visibleImageIndices, setVisibleImageIndices] = React.useState<number[]>([]);
+  const [isTransitioning, setIsTransitioning] = React.useState(false);
+  const [shuffleLoading, setShuffleLoading] = React.useState(false);
+  const [preloadedSrc, setPreloadedSrc] = React.useState<string | null>(null);
   const prevIndexRef = useRef(currentIndex);
+  const imagesLoaded = useRef(false);
+
+  // Use memo to prevent unnecessary re-renders of image data
+  const getImages = useCallback(async () => {
+    try {
+      const allImages = getAllImages();
+      setImages(allImages);
+      imagesLoaded.current = true;
+    } catch (error) {
+      console.error('Error loading images:', error);
+    }
+  }, []);
 
   useEffect(() => {
-    const allImages = getAllImages();
-    setImages(allImages); // Load all 566 images
-  }, []);
+    getImages();
+  }, [getImages]);
 
   // Calculate which images should be visible based on current index
   useEffect(() => {
     if (images.length === 0) return;
     
-    const indices = [currentIndex];
+    // Priority: current image + immediately adjacent ones
+    const highPriorityIndices = [
+      currentIndex,
+      (currentIndex + 1) % images.length,
+      (currentIndex - 1 + images.length) % images.length
+    ];
     
-    // Add previous images
-    for (let i = 1; i <= PRELOAD_IMAGES; i++) {
+    // Secondary: other preload images
+    const secondaryIndices = [];
+    for (let i = 2; i <= PRELOAD_IMAGES; i++) {
       const prevIndex = (currentIndex - i + images.length) % images.length;
-      indices.push(prevIndex);
-    }
-    
-    // Add next images
-    for (let i = 1; i <= PRELOAD_IMAGES; i++) {
       const nextIndex = (currentIndex + i) % images.length;
-      indices.push(nextIndex);
+      secondaryIndices.push(prevIndex, nextIndex);
     }
     
-    setVisibleImageIndices(indices);
+    setVisibleImageIndices([...highPriorityIndices, ...secondaryIndices]);
   }, [currentIndex, images.length]);
 
   const handleScroll = useCallback(() => {
@@ -53,13 +67,12 @@ const ImageGallery: React.FC = () => {
 
     const scrollPosition = window.scrollY;
     if (scrollPosition > 100) {
-      setShowFloatingButton(true);
       const timeout = window.setTimeout(() => {
-        setShowFloatingButton(false);
+        setHideTimeout(null);
       }, 4000);
       setHideTimeout(timeout);
     } else {
-      setShowFloatingButton(false);
+      setHideTimeout(null);
     }
   }, [hideTimeout]);
 
@@ -87,6 +100,59 @@ const ImageGallery: React.FC = () => {
     }
   }, [currentIndex]);
 
+  // Preload images function
+  const preloadImage = useCallback((src: string) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = src;
+    });
+  }, []);
+
+  // Preload current and adjacent images when they change
+  useEffect(() => {
+    if (images.length === 0 || visibleImageIndices.length === 0) return;
+    
+    // Preload visible images
+    const preloadPromises = visibleImageIndices.slice(0, 3).map(index => 
+      preloadImage(images[index].src)
+    );
+    
+    Promise.all(preloadPromises).catch(() => {
+      // Silently handle any preloading errors
+    });
+  }, [visibleImageIndices, images, preloadImage]);
+
+  // Preload the active image whenever it changes
+  useEffect(() => {
+    if (images.length === 0) return;
+    
+    // Force preload the current image
+    const currentImageSrc = images[currentIndex].src;
+    setPreloadedSrc(currentImageSrc);
+    
+    const preloader = new Image();
+    preloader.src = currentImageSrc;
+    
+    // Also preload adjacent images in the background
+    const preloadAdjacent = () => {
+      const prevIndex = (currentIndex - 1 + images.length) % images.length;
+      const nextIndex = (currentIndex + 1) % images.length;
+      
+      const prevImage = new Image();
+      prevImage.src = images[prevIndex].src;
+      
+      const nextImage = new Image();
+      nextImage.src = images[nextIndex].src;
+    };
+    
+    // Preload after a small delay
+    const timer = setTimeout(preloadAdjacent, 200);
+    
+    return () => clearTimeout(timer);
+  }, [currentIndex, images]);
+
   const prevImage = () => {
     if (isTransitioning) return; // Prevent rapid clicking
     setCurrentIndex(prev => (prev === 0 ? images.length - 1 : prev - 1));
@@ -98,12 +164,67 @@ const ImageGallery: React.FC = () => {
   };
 
   const randomImage = () => {
-    if (isTransitioning) return; // Prevent rapid clicking
+    // Prevent clicking if already transitioning or loading
+    if (isTransitioning || shuffleLoading) return;
+    
+    // Set loading state to show spinner
+    setShuffleLoading(true);
+    
+    // Clear any existing preloaded image
+    setPreloadedSrc(null);
+    
+    // Find a new random index
     let newIndex;
     do {
       newIndex = Math.floor(Math.random() * images.length);
     } while (newIndex === currentIndex && images.length > 1);
-    setCurrentIndex(newIndex);
+    
+    // Store the new image source
+    const newImageSrc = images[newIndex].src;
+    
+    // Force the browser to load the image before proceeding
+    const imgLoader = new Image();
+    
+    // After the image is loaded, update the state
+    imgLoader.onload = () => {
+      // Mark that the image is preloaded and store its source
+      setPreloadedSrc(newImageSrc);
+      
+      // Update visible indices for adjacent images
+      const adjacentIndices = [
+        newIndex,
+        (newIndex + 1) % images.length,
+        (newIndex - 1 + images.length) % images.length
+      ];
+      setVisibleImageIndices(adjacentIndices);
+      
+      // Wait for a frame to apply the DOM updates
+      requestAnimationFrame(() => {
+        // Start the transition animation 
+        setIsTransitioning(true);
+        
+        // Wait again to ensure the animation is applied
+        requestAnimationFrame(() => {
+          // Update the current index to show the new image
+          setCurrentIndex(newIndex);
+          
+          // Clear the loading state
+          setShuffleLoading(false);
+        });
+      });
+    };
+    
+    // If image fails to load, still try to show it
+    imgLoader.onerror = () => {
+      console.warn('Failed to preload image, attempting to show anyway');
+      
+      setIsTransitioning(true);
+      setCurrentIndex(newIndex); 
+      setShuffleLoading(false);
+    };
+    
+    // Start loading the image
+    imgLoader.src = newImageSrc;
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -130,7 +251,7 @@ const ImageGallery: React.FC = () => {
   };
 
   // Calculate visible indicators
-  const visibleIndicators = useMemo(() => {
+  const visibleIndicators = React.useMemo(() => {
     if (images.length <= MAX_VISIBLE_INDICATORS) {
       return images.map((_, i) => i);
     }
@@ -157,7 +278,8 @@ const ImageGallery: React.FC = () => {
     }
 
     return Array.from({ length: endIndex - startIndex + 1 }, (_, i) => startIndex + i);
-  }, [currentIndex, images.length]);
+  }, [currentIndex, images.length, MAX_VISIBLE_INDICATORS]);
+  // Calculate the number of images to show in the grid
 
   if (showGrid) {
     return <ImageGrid images={images} onClose={() => setShowGrid(false)} />;
@@ -196,6 +318,7 @@ const ImageGallery: React.FC = () => {
                 index={index}
                 activeIndex={currentIndex}
                 totalImages={images.length}
+                isPreloaded={preloadedSrc === images[index].src}
               />
             ))}
           </div>
@@ -207,10 +330,19 @@ const ImageGallery: React.FC = () => {
           <div className="flex justify-center gap-4">
             <button 
               onClick={randomImage}
-              className="p-3 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-black/60 transition-all duration-300 hover:scale-105 shadow-lg"
+              disabled={shuffleLoading}
+              className={`p-3 rounded-full ${
+                shuffleLoading 
+                  ? 'bg-black/30 text-gray-400' 
+                  : 'bg-black/40 hover:bg-black/60 text-white'
+              } backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg`}
               aria-label="Random image"
             >
-              <Shuffle className="w-5 h-5" />
+              {shuffleLoading ? (
+                <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Shuffle className="w-5 h-5" />
+              )}
             </button>
             
             <button 
