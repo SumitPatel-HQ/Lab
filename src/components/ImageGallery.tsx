@@ -7,12 +7,12 @@ import { getAllImages, type Image as ImageType } from '../services/imageService'
 
 const MAX_VISIBLE_INDICATORS = 8; // Maximum number of indicators to show
 const PRELOAD_IMAGES = 3; // Preload nearby images
-const SWIPE_THRESHOLD = 20; // Extremely low threshold to trigger swipes
-const VELOCITY_THRESHOLD = 0.05; // Incredibly sensitive velocity detection
-const SWIPE_RESISTANCE = 0.4; // Even less resistance for ultra-responsive movement
+const SWIPE_THRESHOLD = 8; // Extremely minimal distance needed to trigger a swipe
+const VELOCITY_THRESHOLD = 0.02; // Detect even the slightest movement
+const SWIPE_RESISTANCE = 0.2; // Very low resistance for immediate movement
 const MAX_ROTATION_ANGLE = 8; // Slightly reduced rotation for faster perception
-const SPRING_ANIMATION_DURATION = 150; // Ultra-fast spring reset
-const SWIPE_EXIT_DURATION = 150; // Ultra-fast exit animation
+const SPRING_ANIMATION_DURATION = 100; // Ultra-fast spring reset
+const SWIPE_EXIT_DURATION = 100; // Ultra-fast exit animation (100ms)
 const NEXT_CARD_VISIBILITY_THRESHOLD = 0.1; // Show next card after just 10% of swipe progress
 
 const ImageGallery: React.FC = () => {
@@ -118,7 +118,7 @@ const ImageGallery: React.FC = () => {
       setIsTransitioning(true);
       const timer = setTimeout(() => {
         setIsTransitioning(false);
-      }, 200); // Ultra-fast transition
+      }, 120); // Ultra-fast transition
       
       prevIndexRef.current = currentIndex;
       
@@ -263,7 +263,7 @@ const ImageGallery: React.FC = () => {
     imgLoader.src = newImageSrc;
   };
 
-  // Enhanced touch handling with better adjacent card visibility
+  // Optimized touch start with pre-initialization
   const onTouchStart = (e: React.TouchEvent) => {
     // Prevent handling touch if we're in a transition
     if (isTransitioning) return;
@@ -279,91 +279,99 @@ const ImageGallery: React.FC = () => {
     lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
     touchStartTimeRef.current = performance.now();
     velocityXRef.current = 0;
-    setDragStartY(touch.clientY);
-    setDragY(0);
+    
+    // Pre-initialize swipe direction based on touch position for faster response
+    const screenCenter = screenWidthRef.current / 2;
+    const initialDirection = touch.clientX < screenCenter ? 'left' : 'right';
+    swipeDirectionRef.current = initialDirection;
+    setSwipeDirection(initialDirection);
+    
     setIsDragging(true);
     setDragOffset(0);
-    setSwipeDirection(null);
-    setSwipeProgress(0);
-    swipeDirectionRef.current = null;
+    setDragY(0);
+    setSwipeProgress(0.1); // Start with slight progress to show next card immediately
   };
 
+  // Ultra-responsive touch move with minimal detection
   const onTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || touchStartRef.current === null || isTransitioning) return;
     
-    // Extract touch data directly
+    // Always prevent default
+    e.preventDefault();
+    
     const touch = e.targetTouches[0];
     const deltaX = touch.clientX - touchStartRef.current.x;
     
-    // Immediately prevent default to avoid any browser lag
-    e.preventDefault(); // Always prevent default for better performance
-    
-    // Fast velocity calculation
+    // Immediate velocity calculation with heavy weighting on current movement
     if (lastTouchRef.current !== null) {
-      const timeDelta = performance.now() - (touchStartTimeRef.current || performance.now());
-      if (timeDelta > 0) {
-        const instantVelocityX = (touch.clientX - lastTouchRef.current.x) / timeDelta;
-        // Even heavier weight on recent movement
-        velocityXRef.current = velocityXRef.current * 0.3 + instantVelocityX * 0.7;
-      }
+      const timeDelta = Math.max(1, performance.now() - (touchStartTimeRef.current || performance.now()));
+      const instantVelocityX = (touch.clientX - lastTouchRef.current.x) / timeDelta;
+      // Almost entirely based on current movement
+      velocityXRef.current = velocityXRef.current * 0.1 + instantVelocityX * 0.9;
     }
     
-    // Update last position directly
     lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
     
-    // Apply less resistance for more responsive feel
+    // Apply minimal resistance for extremely responsive feel
     const resistedDeltaX = deltaX * SWIPE_RESISTANCE;
     
-    // Set direction immediately for any horizontal movement
+    // Update direction immediately for any movement
     const direction = deltaX < 0 ? 'left' : 'right';
-    if (swipeDirectionRef.current !== direction) {
-      swipeDirectionRef.current = direction;
-      setSwipeDirection(direction);
+    swipeDirectionRef.current = direction;
+    setSwipeDirection(direction);
+    
+    // Calculate progress with very little movement required
+    const progress = Math.min(Math.abs(deltaX) / (screenWidthRef.current * 0.15), 1);
+    
+    // Check if we've moved enough to auto-complete the swipe
+    if (progress > 0.5 || Math.abs(velocityXRef.current) > VELOCITY_THRESHOLD * 2) {
+      // Auto-complete swipe if we've moved halfway or have sufficient velocity
+      animateSwipeCompletion(direction);
+      return;
     }
     
-    // Calculate swipe progress with much less movement required
-    const progress = Math.min(Math.abs(deltaX) / (screenWidthRef.current * 0.2), 1);
+    // Update UI directly
     setSwipeProgress(progress);
-    
-    // Direct updates for immediate response
     setDragOffset(resistedDeltaX);
-    setDragY(0);
   };
 
-  // Enhanced swipe completion with instant transition
+  // Instant swipe completion with minimal animation
   const animateSwipeCompletion = (direction: 'left' | 'right') => {
+    // Cancel any ongoing touch handling
+    setIsDragging(false);
+    
     const startOffset = dragOffset;
-    const targetOffset = direction === 'left' ? -screenWidthRef.current * 0.8 : screenWidthRef.current * 0.8;
+    const targetOffset = direction === 'left' ? -screenWidthRef.current * 0.5 : screenWidthRef.current * 0.5;
     const startTime = performance.now();
     const duration = SWIPE_EXIT_DURATION;
     
     // Set direction for entrance animation
     setSwipeDirection(direction);
-    swipeDirectionRef.current = direction;
     
-    // Simplify by precomputing card indexes
+    // Directly compute next index
     const nextIndex = direction === 'left' 
       ? (currentIndex + 1) % images.length 
       : (currentIndex - 1 + images.length) % images.length;
     
-    // Optimize animation frame to reduce work per frame
+    // Preload the next image immediately
+    if (images[nextIndex]) {
+      const img = new Image();
+      img.src = images[nextIndex].src;
+    }
+    
+    // Ultra-fast, simplified animation function
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Ultra-smooth animation curve
-      const easedProgress = progress < 0.5 
-        ? 2 * progress * progress 
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-      
-      // Update state in batches for better performance
+      // Linear animation for speed - minimal easing
       setSwipeProgress(progress);
-      setDragOffset(startOffset + (targetOffset - startOffset) * easedProgress);
+      setDragOffset(startOffset + (targetOffset - startOffset) * progress);
       
       if (progress < 1) {
         animationFrameIdRef.current = requestAnimationFrame(animate);
       } else {
-        // Animation complete - immediately change image
+        // Skip any further animations, immediately set new index
         setDragOffset(0);
         setDragY(0);
         setSwipeProgress(0);
@@ -371,13 +379,28 @@ const ImageGallery: React.FC = () => {
         swipeDirectionRef.current = null;
         animationFrameIdRef.current = null;
         
-        // Set index directly for faster response
+        // Set index directly
         setCurrentIndex(nextIndex);
       }
     };
     
-    // Start animation immediately
-    animationFrameIdRef.current = requestAnimationFrame(animate);
+    // Skip animation entirely for extremely small movements
+    if (Math.abs(startOffset) < 5 && Math.abs(velocityXRef.current) > VELOCITY_THRESHOLD) {
+      // Immediately change image without animation
+      setDragOffset(0);
+      setDragY(0);
+      setSwipeProgress(0);
+      setSwipeDirection(null);
+      swipeDirectionRef.current = null;
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+      setCurrentIndex(nextIndex);
+    } else {
+      // Very brief animation for larger movements
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+    }
   };
 
   // Reset with minimal animation
@@ -413,7 +436,7 @@ const ImageGallery: React.FC = () => {
     animationFrameIdRef.current = requestAnimationFrame(animate);
   };
 
-  // Ultra-responsive touch end handler with extreme sensitivity
+  // Ultra-fast touch end handler
   const onTouchEnd = () => {
     if (!isDragging || touchStartRef.current === null || isTransitioning) {
       setIsDragging(false);
@@ -427,24 +450,39 @@ const ImageGallery: React.FC = () => {
     }
     
     const deltaX = touchEnd.x - touchStartRef.current.x;
+    const totalMovement = Math.abs(deltaX);
     
-    // Extreme swipe sensitivity
+    // Detect even minimal swipes and quick taps
     const velocity = Math.abs(velocityXRef.current);
     const isQuickSwipe = velocity > VELOCITY_THRESHOLD;
-    
-    // Much easier to trigger swipes
-    const effectiveThreshold = isQuickSwipe ? SWIPE_THRESHOLD * 0.2 : SWIPE_THRESHOLD;
+    const isTinyMovement = totalMovement <= SWIPE_THRESHOLD;
     
     setIsDragging(false);
     
-    // Complete swipe with minimal threshold
-    if (Math.abs(deltaX) >= effectiveThreshold || isQuickSwipe) {
-      animateSwipeCompletion(deltaX < 0 ? 'left' : 'right');
+    // Complete swipe with extremely low threshold
+    // Even a tiny movement should trigger if it's quick enough
+    if (totalMovement >= SWIPE_THRESHOLD || isQuickSwipe) {
+      // For extremely small movements, use direction based on screen position
+      const direction = isTinyMovement && isQuickSwipe 
+        ? (touchEnd.x < screenWidthRef.current / 2 ? 'left' : 'right')
+        : (deltaX < 0 ? 'left' : 'right');
+      
+      animateSwipeCompletion(direction);
     } else {
-      animateSpringReset();
+      // Only reset if there's significant offset
+      if (Math.abs(dragOffset) > 5) {
+        animateSpringReset();
+      } else {
+        // Skip reset animation entirely for tiny movements
+        setDragOffset(0);
+        setDragY(0);
+        setSwipeProgress(0);
+        setSwipeDirection(null);
+        swipeDirectionRef.current = null;
+      }
     }
     
-    // Reset tracking immediately
+    // Reset touch tracking
     touchStartRef.current = null;
     lastTouchRef.current = null;
     touchStartTimeRef.current = null;
