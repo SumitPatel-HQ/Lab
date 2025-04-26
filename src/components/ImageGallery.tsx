@@ -327,7 +327,8 @@ const ImageGallery: React.FC = () => {
       if (animationFrameIdRef.current === null) {
         animationFrameIdRef.current = requestAnimationFrame(() => {
           setDragOffset(resistedDeltaX);
-          setDragY(deltaY * 0.2); // Minimal vertical movement for 3D effect
+          // Eliminate vertical movement completely
+          setDragY(0);
           animationFrameIdRef.current = null;
         });
       }
@@ -340,7 +341,8 @@ const ImageGallery: React.FC = () => {
   // Enhanced swipe completion with better transition
   const animateSwipeCompletion = (direction: 'left' | 'right') => {
     const startOffset = dragOffset;
-    const startY = dragY;
+    // Always start with dragY at 0
+    setDragY(0);
     const targetOffset = direction === 'left' ? -screenWidthRef.current * 1.5 : screenWidthRef.current * 1.5;
     const startTime = performance.now();
     const duration = 350; // Slightly longer for more dramatic exit
@@ -362,12 +364,12 @@ const ImageGallery: React.FC = () => {
       // Calculate new position with acceleration
       const newOffset = startOffset + (targetOffset - startOffset) * easedProgress;
       
-      // Add a slight arc to the exit animation
-      const arcY = startY + (direction === 'left' ? 50 : -50) * Math.sin(progress * Math.PI);
+      // No arc animation - keep dragY at 0 throughout the animation
       
       // Update positions
       setDragOffset(newOffset);
-      setDragY(arcY);
+      // Keep Y position at 0 to prevent vertical movement
+      setDragY(0);
       
       // Continue animation if not complete
       if (progress < 1) {
@@ -448,7 +450,8 @@ const ImageGallery: React.FC = () => {
     const rotationAngle = MAX_ROTATION_ANGLE * rotationFactor * (dragOffset > 0 ? 1 : -1);
     
     // Return the transform style for the active card
-    return `translateX(${dragOffset}px) translateY(${dragY}px) rotate(${rotationAngle}deg) translateZ(0)`;
+    // Removed translateY to eliminate vertical movement
+    return `translateX(${dragOffset}px) rotate(${rotationAngle}deg) translateZ(0)`;
   };
   
   // New transform style for next/previous cards
@@ -459,18 +462,15 @@ const ImageGallery: React.FC = () => {
                   (swipeDirection === 'right' && index === (currentIndex - 1 + images.length) % images.length);
     
     if (isNext) {
-      // Scale up from 0.9 to 1 as the current card moves away
-      const scale = 0.9 + (0.1 * swipeProgress);
-      // Move from behind to center
+      // Scale up from 0.92 to 1 as the current card moves away
+      const scale = 0.92 + (0.08 * swipeProgress);
+      // Move from slightly off-center to center
       const xOffset = swipeDirection === 'left' ? 
-        20 - (20 * swipeProgress) : // Coming from right
-        -20 + (20 * swipeProgress); // Coming from left
+        15 - (15 * swipeProgress) : // Coming from right
+        -15 + (15 * swipeProgress); // Coming from left
       
-      // Rotate slightly in the opposite direction of the leaving card
-      const rotationFactor = swipeDirection === 'left' ? -1 : 1;
-      const rotationAngle = 4 * rotationFactor * (1 - swipeProgress);
-      
-      return `translateX(${xOffset}px) rotate(${rotationAngle}deg) scale(${scale}) translateZ(0)`;
+      // Use pure horizontal translation with scale
+      return `translateX(${xOffset}px) scale(${scale}) translateZ(0)`;
     }
     
     return '';
@@ -597,31 +597,45 @@ const ImageGallery: React.FC = () => {
             <ChevronRight className="w-7 h-7 md:w-10 md:h-10" />
           </button>
           
-          <div className="relative w-full h-[85vh] md:h-[95vh]">
+          <div className="relative w-full h-[85vh] md:h-[95vh] flex items-center justify-center">
             {visibleImageIndices.map(index => {
               const isActive = index === currentIndex;
               const zIndex = isActive ? 30 : (Math.abs(index - currentIndex) === 1 ? 20 : 10);
               
-              // Determine which transform to use based on the card's role
-              let transform = '';
+              // Define a fixed position container for each card
+              // This fixes the vertical position issue during transitions
+              const cardStyle: React.CSSProperties = {
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: getActiveCardTransform(),
+                willChange: isDragging && isActive ? 'transform' : 'auto',
+                zIndex,
+                opacity: isActive ? 1 : (Math.abs(index - currentIndex) === 1 ? 
+                          0.7 + (swipeProgress * 0.3) : 0.5)
+              };
+              
+              // Apply transforms based on card state
               if (isActive) {
-                transform = getActiveCardTransform();
+                if (isDragging) {
+                  cardStyle.transform = getActiveCardTransform();
+                } else {
+                  cardStyle.transform = 'translateX(0)';
+                }
               } else {
-                transform = getAdjacentCardTransform(index);
+                const adjacentTransform = getAdjacentCardTransform(index);
+                if (adjacentTransform) {
+                  cardStyle.transform = adjacentTransform;
+                } else {
+                  // Keep inactive cards in their default positions
+                  cardStyle.transform = 'translateX(0)';
+                }
               }
               
               return (
                 <div 
                   key={images[index].id}
-                  style={{ 
-                    transform: transform,
-                    willChange: (isDragging && isActive) || 
-                              (swipeProgress > 0 && Math.abs(index - currentIndex) === 1) ? 
-                                'transform' : 'auto',
-                    zIndex: zIndex,
-                    opacity: isActive ? 1 : (Math.abs(index - currentIndex) === 1 ? 
-                              0.7 + (swipeProgress * 0.3) : 0.5)
-                  }}
+                  style={cardStyle}
                   className="transition-transform duration-300 ease-out"
                 >
                   <ImageCard 
