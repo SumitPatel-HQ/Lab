@@ -1,10 +1,9 @@
 [build]
-  command = "pnpm run build"
+  command = "pnpm install --no-frozen-lockfile && pnpm run build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "23.11.0"
-  NPM_FLAGS = "--no-frozen-lockfile"
   # Disable Next.js plugin since this is a Vite project
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
