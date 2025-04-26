@@ -506,7 +506,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           {/* Image caption with gradient background for better visibility */}
           {image.title && (
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent pt-12 pb-4 px-4">
-              <h3 className="text-white text-center md:text-left font-medium">{image.title}</h3>
+              <h3 className="text-gray-400 text-left md:text-left font-small ">{image.title}</h3>
               {(image as any).caption && (
                 <p className="text-white/80 text-sm mt-1 text-center md:text-left">{(image as any).caption}</p>
               )}
@@ -514,13 +514,13 @@ const ImageModal: React.FC<ImageModalProps> = ({
           )}
         </div>
         
-        {totalImages > 1 && (
+        {/* {totalImages > 1 && (
           <div className="absolute top-4 left-4 pointer-events-none">
             <p className="text-white/90 text-sm bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">
               {currentIndex + 1} / {totalImages}
             </p>
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );
