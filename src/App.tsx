@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import ImageGallery from './components/ImageGallery';
 import PasswordProtection from './components/PasswordProtection';
+import useSecurityProtection from './hooks/useSecurityProtection';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Set your password here - current password: 2000
-  const PASSWORD = "";
+  const PASSWORD = "2000";
+  
+  // Use the security protection hook
+  const { isBlurred, unblur, blurClassName } = useSecurityProtection({
+    onSuspiciousActivity: () => setIsAuthenticated(false),
+  });
   
   // Add additional security by resetting auth state when window gains focus
   useEffect(() => {
@@ -30,10 +36,11 @@ function App() {
   
   const handleAuthentication = () => {
     setIsAuthenticated(true);
+    unblur(); // Clear any blur when authentication succeeds
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 dark:bg-gray-900">
+    <div className={`min-h-screen bg-gray-900 dark:bg-gray-900 ${isBlurred ? blurClassName : ''}`}>
       {!isAuthenticated ? (
         <PasswordProtection 
           onAuthenticated={handleAuthentication} 
