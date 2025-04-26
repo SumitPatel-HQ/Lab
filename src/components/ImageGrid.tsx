@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ArrowLeft, LayoutGrid, ChevronDown } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, ChevronDown, DownloadCloud, EyeIcon } from 'lucide-react';
 import type { Image } from '../services/imageService';
 import ImageModal from './ImageModal';
 
@@ -32,6 +32,7 @@ interface TiltState {
 }
 
 const IMAGES_PER_LOAD = 40; // Number of images to load in each batch
+const MOBILE_IMAGES_PER_LOAD = 20; // Fewer images per batch on mobile for better performance
 
 const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const [animate, setAnimate] = useState(false);
@@ -125,15 +126,17 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   // Define loadMoreImages before it's used in the useEffect hook
   const loadMoreImages = useCallback(() => {
     if (isLoading || visibleImages.length >= images.length) return;
-    
+
     setIsLoading(true);
     setNewBatchLoaded(true);
     
-    // Load exactly 40 more images when button is clicked
+    // Load exactly 40 more images (or fewer on mobile) when button is clicked
+    const batchSize = isMobile ? MOBILE_IMAGES_PER_LOAD : IMAGES_PER_LOAD;
+    
     requestAnimationFrame(() => {
       const nextBatch = images.slice(
         visibleImages.length, 
-        visibleImages.length + IMAGES_PER_LOAD
+        visibleImages.length + batchSize
       );
       
       // Small delay to prepare for animation
@@ -147,7 +150,51 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
         }, 1000);
       }, 50);
     });
-  }, [isLoading, visibleImages.length, images]);
+  }, [isLoading, visibleImages.length, images, isMobile]);
+  
+  // Load all remaining images
+  const loadAllImages = useCallback(() => {
+    if (isLoading || visibleImages.length >= images.length) return;
+    
+    setIsLoading(true);
+    setNewBatchLoaded(true);
+    
+    // Show loading indicator for a brief moment
+    requestAnimationFrame(() => {
+      // Calculate remaining images
+      const remainingImages = images.slice(visibleImages.length);
+      
+      // Small delay to prepare for animation
+      setTimeout(() => {
+        // Load in smaller batches to prevent browser from freezing on mobile
+        if (isMobile && remainingImages.length > 100) {
+          // Load first batch immediately
+          const firstBatch = remainingImages.slice(0, 50);
+          setVisibleImages(prev => [...prev, ...firstBatch]);
+          
+          // Then load the rest with a small delay to allow rendering to happen
+          setTimeout(() => {
+            setVisibleImages(prev => [...prev, ...remainingImages.slice(50)]);
+            setIsLoading(false);
+            
+            // Reset the new batch loaded flag after animation completes
+            setTimeout(() => {
+              setNewBatchLoaded(false);
+            }, 1000);
+          }, 300);
+        } else {
+          // On desktop or with fewer images, load all at once
+          setVisibleImages(prev => [...prev, ...remainingImages]);
+          setIsLoading(false);
+          
+          // Reset the new batch loaded flag after animation completes
+          setTimeout(() => {
+            setNewBatchLoaded(false);
+          }, 1000);
+        }
+      }, 50);
+    });
+  }, [isLoading, visibleImages.length, images, isMobile]);
   
   // Setup intersection observer to detect when load more button is in view
   useEffect(() => {
@@ -588,12 +635,12 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
         {hasMoreImages && (
           <div 
             ref={loadMoreRef}
-            className="flex justify-center mt-8 mb-4"
+            className="flex justify-center mt-8 mb-4 gap-4 "
           >
             <button
               onClick={loadMoreImages}
               disabled={isLoading}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-2"
+              className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -602,8 +649,27 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
                 </>
               ) : (
                 <>
-                  <span>Load More</span>
+                  <span className='text-sm'>Load More</span>
                   <ChevronDown className="w-5 h-5" />
+                </>
+              )}
+            </button>
+            
+            <button
+              onClick={loadAllImages}
+              disabled={isLoading}
+              className="px-4 py-3 bg-purple-600 hover:bg-purple-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-2"
+              aria-label="See all images"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <span className="hidden sm:block">See All</span>
+                  <EyeIcon className="w-4 h-4" />
                 </>
               )}
             </button>

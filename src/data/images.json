@@ -514,7 +514,7 @@
       "id": "85",
       "title": "Image 1-22",
       "src": "/public/1 (22).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "86",
@@ -1426,7 +1426,7 @@
       "id": "237",
       "title": "Image 2-196",
       "src": "/public/2 (196).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "238",
@@ -2928,12 +2928,7 @@
       "src": "/public/9 (21).jpg",
       "ratio": "2:3"
     },
-    {
-      "id": "507",
-      "title": "Image 9-22",
-      "src": "/public/9 (22).jpg",
-      "ratio": "2:3"
-    },
+    
     {
       "id": "508",
       "title": "Image 9-23",

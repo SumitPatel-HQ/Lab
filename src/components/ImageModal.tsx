@@ -6,7 +6,7 @@ import type { Image } from '../services/imageService';
 const HOVER_CONFIG = {
   MAX_TILT: 5, // Maximum rotation in degrees (reduced for modal)
   SCALE_FACTOR: 1.02, // How much to scale up on hover (reduced for modal)
-  TRANSITION_SPEED: 0.3, // Transition speed in seconds
+  TRANSITION_SPEED: 0.7, // Transition speed in seconds (matching ImageGrid.tsx)
   PERSPECTIVE: 1000, // Perspective value for 3D effect
   SHADOW_COLOR: 'rgba(0,0,0,0.3)', // Shadow color
 };
@@ -27,6 +27,9 @@ const DISMISS_THRESHOLD = 100; // Pixels needed to dismiss modal via drag
 const DISMISS_VELOCITY_THRESHOLD = 0.5; // Velocity needed to dismiss modal
 const ANIMATION_DURATION = 200; // Faster animation for better UX
 const MAX_TILT = HOVER_CONFIG.MAX_TILT; // Maximum tilt angle for the modal image
+// Add constants for dismiss animation
+const DISMISS_ANIMATION_DURATION = 300; // How long the dismiss animation takes
+const DISMISS_DISTANCE = window.innerHeight; // How far the image will travel when dismissed
 
 const ImageModal: React.FC<ImageModalProps> = ({ 
   image, 
@@ -148,9 +151,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
       lastTouchTimeRef.current = performance.now();
       lastTouchYRef.current = e.touches[0].clientY;
       
+      // Reset values to ensure clean state
+      setIsDraggingVertical(false);
+      setIsSwiping(false);
+      setDragVelocityY(0);
+      
       if (scale === 1) {
-        // Only enable swiping when not zoomed
-        setIsSwiping(true);
+        // Enable tracking when not zoomed
+        // We'll determine direction in the move event
       }
     }
   };
@@ -181,12 +189,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
         
         // Determine if this is primarily a horizontal or vertical gesture
         if (!isSwiping && !isDraggingVertical) {
-          if (Math.abs(deltaY) > Math.abs(deltaX) * 1.5) {
-            // Primarily vertical gesture
+          if (Math.abs(deltaY) > Math.abs(deltaX) * 1.2) {
+            // Primarily vertical gesture - reduced threshold to make vertical detection more sensitive
             setIsDraggingVertical(true);
+            setIsSwiping(false);
           } else if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
             // Primarily horizontal gesture
             setIsSwiping(true);
+            setIsDraggingVertical(false);
           }
         }
         
@@ -202,8 +212,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
               }
             }
             
-            // Apply resistance to make drag feel more natural
-            const resistedDeltaY = Math.min(deltaY * 0.5, window.innerHeight * 0.3);
+            // Apply cubic resistance to make drag feel more natural (increases resistance as you drag further)
+            const resistFactor = 0.7 - (Math.min(deltaY, 300) / 1000);
+            const resistedDeltaY = deltaY * resistFactor;
             setDragY(resistedDeltaY);
             
             // Update last position and time
@@ -247,7 +258,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     if (isDraggingVertical) {
       // If velocity is high enough or dragged far enough, dismiss modal
       if (dragVelocityY > DISMISS_VELOCITY_THRESHOLD || dragY > DISMISS_THRESHOLD) {
-        onClose();
+        animateDismiss();
       } else {
         // Not enough movement, animate back to center
         animateVerticalReset();
@@ -316,8 +327,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
     const animateReset = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // Spring-like easing for natural feel
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      // Improved spring-like easing for more natural bounce effect
+      const easeProgress = 1 - Math.pow(1 - progress, 4);
       
       // Calculate new position
       const newY = startY * (1 - easeProgress);
@@ -459,6 +470,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
       transform += `scale(${scale}) `;
     } else if (isHovering && enableTilt) {
       transform += `scale(${HOVER_CONFIG.SCALE_FACTOR}) `;
+    } else if (isDraggingVertical) {
+      // Add subtle scale reduction when dragging down
+      const dragProgress = Math.min(dragY / 300, 1);
+      const scaleReduction = 1 - (dragProgress * 0.1); // Scale down to 0.9 at most
+      transform += `scale(${scaleReduction}) `;
     }
     
     // Apply horizontal swipe offset
@@ -501,6 +517,40 @@ const ImageModal: React.FC<ImageModalProps> = ({
     return '0 10px 30px -15px rgba(0,0,0,0.2)';
   };
 
+  // Add new animation for dismissal with spring effect
+  const animateDismiss = () => {
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+    }
+    
+    const startY = dragY;
+    const startTime = performance.now();
+    const duration = DISMISS_ANIMATION_DURATION;
+    
+    const animateDismissEffect = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease-out cubic for natural acceleration 
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      
+      // Calculate new position with increasing speed
+      const newY = startY + (DISMISS_DISTANCE - startY) * easeProgress;
+      
+      setDragY(newY);
+      
+      if (progress < 1) {
+        animationFrameIdRef.current = requestAnimationFrame(animateDismissEffect);
+      } else {
+        // Animation complete, close the modal
+        animationFrameIdRef.current = null;
+        onClose();
+      }
+    };
+    
+    animationFrameIdRef.current = requestAnimationFrame(animateDismissEffect);
+  };
+
   if (!image) return null;
 
   return (
@@ -515,7 +565,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
         className={`relative max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[60%] max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl transform transition-transform duration-300 ease-in-out will-change-transform`}
         style={{
           transform: dragY ? `translateY(${dragY}px)` : 'none',
-          opacity: dragY ? Math.max(1 - (dragY / 400), 0.3) : 1
+          opacity: dragY ? Math.max(1 - (dragY / 300), 0.3) : 1, // Increased opacity change for better feedback
+          transition: isDraggingVertical ? 'none' : 'transform 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 300ms ease', // Spring curve for reset
         }}
       >
         <button 
@@ -633,6 +684,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
               <ChevronRight className="w-12 h-12" />
             </div>
           )}
+          
+          
         </div>
       </div>
     </div>

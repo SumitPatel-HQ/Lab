@@ -12,6 +12,22 @@ const isMobileDevice = () => {
          (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
 };
 
+// Helper function to optimize image sources for mobile
+const getOptimizedImageSrc = (originalSrc: string, isMobile: boolean) => {
+  if (!isMobile) return originalSrc;
+  
+  // For local images, you can add query parameters to request smaller versions
+  // This approach assumes your image service can handle these parameters
+  // If using a CDN or image optimization service, you would use their syntax
+  
+  // Basic approach: add a quality and size parameter
+  if (originalSrc.includes('?')) {
+    return `${originalSrc}&quality=70&w=800`;
+  } else {
+    return `${originalSrc}?quality=70&w=800`;
+  }
+};
+
 // Enhanced configuration for hover effects
 const HOVER_CONFIG = {
   MAX_TILT: 10, // Maximum rotation in degrees
@@ -242,17 +258,32 @@ const ImageGallery: React.FC = () => {
     // Set loading state to show spinner
     setShuffleLoading(true);
     
-    // Clear any existing preloaded image
-    setPreloadedSrc(null);
-    
     // Find a new random index
     let newIndex;
     do {
       newIndex = Math.floor(Math.random() * images.length);
     } while (newIndex === currentIndex && images.length > 1);
     
+    // Mobile-specific optimizations to reduce lag
+    if (isMobile) {
+      // Simpler and faster approach for mobile: directly change the index
+      // without complex preloading and animations
+      setCurrentIndex(newIndex);
+      
+      // Brief delay before clearing loading state for UX
+      setTimeout(() => {
+        setShuffleLoading(false);
+        setIsTransitioning(false);
+      }, 100);
+      return;
+    }
+    
+    // Desktop experience with preloading
     // Store the new image source
     const newImageSrc = images[newIndex].src;
+    
+    // Clear any existing preloaded image
+    setPreloadedSrc(null);
     
     // Force the browser to load the image before proceeding
     const imgLoader = new Image();
@@ -541,6 +572,11 @@ const ImageGallery: React.FC = () => {
   const getActiveCardTransform = () => {
     if (!isDragging || dragOffset === 0) return '';
     
+    // Simpler transform for mobile devices to improve performance
+    if (isMobile) {
+      return `translateX(${dragOffset}px)`;
+    }
+    
     // Calculate rotation proportionally to swipe distance
     const rotationFactor = Math.min(Math.abs(dragOffset) / (screenWidthRef.current * 0.3), 1);
     const rotationAngle = MAX_ROTATION_ANGLE * rotationFactor * (dragOffset > 0 ? 1 : -1);
@@ -557,6 +593,15 @@ const ImageGallery: React.FC = () => {
                  (swipeDirection === 'right' && index === (currentIndex - 1 + images.length) % images.length);
     
     if (isNext) {
+      // Simpler transform for mobile devices to improve performance
+      if (isMobile) {
+        const xOffset = swipeDirection === 'left' ? 
+          25 - (25 * swipeProgress) : // Coming from right
+          -25 + (25 * swipeProgress); // Coming from left
+        
+        return `translateX(${xOffset}px)`;
+      }
+      
       // Start with larger initial scale for better visibility
       const scale = 0.9 + (0.1 * swipeProgress);
       
@@ -787,7 +832,25 @@ const ImageGallery: React.FC = () => {
 
   // Check if device is mobile on mount
   useEffect(() => {
-    setIsMobile(isMobileDevice());
+    const checkMobile = () => {
+      const mobile = isMobileDevice();
+      setIsMobile(mobile);
+      
+      // Apply additional performance optimizations for mobile devices
+      if (mobile && galleryRef.current) {
+        // Reduce animation complexity on mobile
+        galleryRef.current.style.willChange = 'auto';
+        
+        // Set a class we can use for mobile-specific styles
+        galleryRef.current.classList.add('mobile-gallery');
+      }
+    };
+    
+    checkMobile();
+    
+    // Recheck on resize for responsive behavior
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // Add mouse position tracking function
@@ -816,6 +879,7 @@ const ImageGallery: React.FC = () => {
     // Calculate tilt transform for the card
     const tiltStyle: React.CSSProperties = {};
     
+    // Skip expensive tilt effects on mobile to improve performance
     if (hoveredCardId === image.id && !isMobile) {
       // Only apply tilt if this card is hovered and not on mobile
       const MAX_TILT = HOVER_CONFIG.MAX_TILT;
@@ -837,6 +901,37 @@ const ImageGallery: React.FC = () => {
       tiltStyle.boxShadow = '0 10px 30px -15px rgba(0,0,0,0)';
     }
     
+    // Simplified card rendering for mobile to improve performance
+    const handleCardClick = () => openImageModal(image);
+    
+    // Use a simpler approach for mobile devices
+    if (isMobile) {
+      return (
+        <div 
+          key={image.id}
+          style={{
+            ...style,
+            transform: style.transform || 'none'
+          }}
+          className="transition-transform duration-200 ease-out"
+          onClick={handleCardClick}
+        >
+          <ImageCard 
+            key={image.id}
+            image={{
+              ...image,
+              src: getOptimizedImageSrc(image.src, isMobile)
+            }}
+            index={index}
+            activeIndex={currentIndex}
+            totalImages={images.length}
+            isPreloaded={preloadedSrc === image.src}
+          />
+        </div>
+      );
+    }
+    
+    // Full featured card for desktop
     return (
       <div 
         key={image.id}
@@ -845,13 +940,16 @@ const ImageGallery: React.FC = () => {
           ...tiltStyle
         }}
         className="transition-transform duration-200 ease-out hover:z-50"
-        onClick={() => openImageModal(image)}
+        onClick={handleCardClick}
         onMouseMove={(e) => handleMouseMove(e, image.id)}
         onMouseLeave={handleMouseLeave}
       >
         <ImageCard 
           key={image.id}
-          image={image}
+          image={{
+            ...image,
+            src: getOptimizedImageSrc(image.src, isMobile)
+          }}
           index={index}
           activeIndex={currentIndex}
           totalImages={images.length}
@@ -896,6 +994,18 @@ const ImageGallery: React.FC = () => {
           <div className="relative w-full h-[85vh] md:h-[95vh] flex items-center justify-center">
             {visibleImageIndices.map(index => {
               const isActive = index === currentIndex;
+              
+              // On mobile, only render the active image and immediate adjacent ones to reduce DOM complexity
+              if (isMobile && !isActive) {
+                const isImmediateAdjacent = 
+                  index === (currentIndex + 1) % images.length || 
+                  index === (currentIndex - 1 + images.length) % images.length;
+                
+                if (!isImmediateAdjacent) {
+                  return null;
+                }
+              }
+              
               const isAdjacent = Math.abs(index - currentIndex) === 1 ||
                                 (currentIndex === 0 && index === images.length - 1) ||
                                 (currentIndex === images.length - 1 && index === 0);
@@ -916,7 +1026,7 @@ const ImageGallery: React.FC = () => {
                 top: '50%',
                 left: '50%',
                 transform: 'translateX(0)',
-                willChange: (isDragging && isActive) || shouldShowAdjacent ? 'transform' : 'auto',
+                willChange: (isDragging && isActive) || shouldShowAdjacent ? (isMobile ? 'transform' : 'transform, opacity') : 'auto',
                 zIndex,
                 // More dramatic opacity change for next card
                 opacity: isActive ? 1 : (shouldShowAdjacent ? 
@@ -1032,7 +1142,7 @@ const ImageGallery: React.FC = () => {
               {/* Image */}
               <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none modal-image-container transition-transform duration-300 will-change-transform">
                 <img
-                  src={modalImage.src}
+                  src={getOptimizedImageSrc(modalImage.src, isMobile)}
                   alt={modalImage.title}
                   className="object-contain max-h-[90vh] w-auto"
                   draggable={false}
@@ -1085,7 +1195,7 @@ const ImageGallery: React.FC = () => {
             {/* Image */}
             <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none modal-image-container transition-transform duration-300 will-change-transform">
               <img
-                src={modalImage.src}
+                src={getOptimizedImageSrc(modalImage.src, isMobile)}
                 alt={modalImage.title}
                 className="object-contain max-h-[90vh] w-auto"
                 draggable={false}
