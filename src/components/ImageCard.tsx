@@ -100,8 +100,8 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
   // Determine aspect ratio class
   const getAspectRatioClass = () => {
     return image.ratio === '2:3' 
-      ? 'aspect-[2/3] max-h-[87vh]' 
-      : 'aspect-[3/2] max-h-[78vh]';
+      ? 'aspect-[2/3] max-h-[87vh] md:max-h-[92vh]' 
+      : 'aspect-[3/2] max-h-[78vh] md:max-h-[85vh]';
   };
 
   const style = getCardStyle();
@@ -113,16 +113,17 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
 
   return (
     <div 
-      className="absolute top-1/2 left-1/2 w-[80vw] max-w-sm transition-all duration-700 ease-in-out will-change-transform"
+      className="absolute top-1/2 left-1/2 w-[80vw] md:w-[65vw] lg:w-[55vw] xl:w-[45vw] max-w-sm transition-all duration-500 ease-in-out will-change-transform"
       style={{
         zIndex: style.zIndex,
         opacity: style.opacity,
         transform: style.transform,
         transitionProperty: 'transform, opacity',
-        transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+        transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        willChange: 'transform, opacity'
       }}
     >
-      <div className="relative overflow-hidden rounded-2xl shadow-lg">
+      <div className="relative overflow-hidden rounded-2xl shadow-lg transform-gpu">
         {!loaded && (
           <div className={`${getAspectRatioClass()} bg-gray-200 animate-pulse flex items-center justify-center`}>
             <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -140,11 +141,15 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
             alt={image.title}
             loading="lazy"
             className={`${getAspectRatioClass()} w-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity`}
+            style={{ 
+              willChange: 'opacity',
+              backfaceVisibility: 'hidden'
+            }}
           />
         )}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-          <h3 className="text-white font-semibold text-lg drop-shadow-md">{image.title}</h3>
-          <p className="text-white/90 text-sm">{image.category}</p>
+          <h3 className="text-white font-semibold text-lg md:text-xl drop-shadow-md">{image.title}</h3>
+          <p className="text-white/90 text-sm md:text-base">{image.category}</p>
         </div>
       </div>
     </div>

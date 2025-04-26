@@ -255,7 +255,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
       const newMode = prev === 'grid' ? 'masonry' : 'grid';
       
       // Adjust density based on layout mode
-      if (newMode === 'grid' && gridDensity < 2) {
+      if (newMode === 'grid' && gridDensity <2 ) {
         setGridDensity(2);
       }
       

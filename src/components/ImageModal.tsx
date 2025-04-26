@@ -301,7 +301,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     >
       <div className="absolute inset-0 animate-modal-in" />
       
-      <button 
+      <buztton 
         className="absolute top-4 right-4 z-50 p-2 bg-black/50 text-white rounded-full backdrop-blur-sm hover:bg-black/70 transition-colors"
         onClick={(e) => {
           e.stopPropagation();
@@ -309,7 +309,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
         }}
       >
         <X className="w-6 h-6" />
-      </button>
+      </buztton>
       
       {/* Navigation buttons - visible on larger screens and on hover */}
       {onPrev && (

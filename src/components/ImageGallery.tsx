@@ -7,29 +7,37 @@ import { getAllImages, type Image as ImageType } from '../services/imageService'
 
 const MAX_VISIBLE_INDICATORS = 8; // Maximum number of indicators to show
 const PRELOAD_IMAGES = 3; // Reduced from 5 to 3 to improve performance
-const SWIPE_THRESHOLD = 50; // Minimum swipe distance to trigger navigation
-const VELOCITY_THRESHOLD = 0.3; // Minimum velocity to trigger a swipe (pixels/ms)
-const SWIPE_RESISTANCE = 0.35; // Resistance factor for more natural swipe feeling
+const SWIPE_THRESHOLD = 80; // Increased for more natural Tinder-like swipes
+const VELOCITY_THRESHOLD = 0.2; // Reduced threshold to make quick swipes more responsive
+const SWIPE_RESISTANCE = 0.8; // Increased resistance for better control
+const MAX_ROTATION_ANGLE = 12; // Maximum rotation angle during swipe in degrees
+const SPRING_ANIMATION_DURATION = 300; // Duration for spring animation
 
 const ImageGallery: React.FC = () => {
   const [images, setImages] = useState<ImageType[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [dragY, setDragY] = useState(0);
   const [showGrid, setShowGrid] = useState(false);
   const [hideTimeout, setHideTimeout] = useState<number | null>(null);
   const [visibleImageIndices, setVisibleImageIndices] = useState<number[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [shuffleLoading, setShuffleLoading] = useState(false);
   const [preloadedSrc, setPreloadedSrc] = useState<string | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [swipeProgress, setSwipeProgress] = useState(0);
   const prevIndexRef = useRef(currentIndex);
-  const touchStartRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{x: number, y: number} | null>(null);
   const touchStartTimeRef = useRef<number | null>(null);
-  const lastTouchXRef = useRef<number | null>(null);
-  const velocityRef = useRef<number>(0);
+  const lastTouchRef = useRef<{x: number, y: number} | null>(null);
+  const velocityXRef = useRef<number>(0);
   const animationFrameIdRef = useRef<number | null>(null);
   const imagesLoaded = useRef(false);
   const galleryRef = useRef<HTMLDivElement>(null);
+  const screenWidthRef = useRef(typeof window !== 'undefined' ? window.innerWidth : 0);
+  const swipeDirectionRef = useRef<'left' | 'right' | null>(null);
 
   // Use memo to prevent unnecessary re-renders of image data
   const getImages = useCallback(async () => {
@@ -44,6 +52,14 @@ const ImageGallery: React.FC = () => {
 
   useEffect(() => {
     getImages();
+    
+    // Set screen width on mount and on resize
+    const handleResize = () => {
+      screenWidthRef.current = window.innerWidth;
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [getImages]);
 
   // Calculate which images should be visible based on current index
@@ -100,7 +116,7 @@ const ImageGallery: React.FC = () => {
       setIsTransitioning(true);
       const timer = setTimeout(() => {
         setIsTransitioning(false);
-      }, 500); // Reduce transition duration for better responsiveness
+      }, 450); // Slightly reduced for better responsiveness
       
       prevIndexRef.current = currentIndex;
       
@@ -245,7 +261,7 @@ const ImageGallery: React.FC = () => {
     imgLoader.src = newImageSrc;
   };
 
-  // New swipe handling with smoother animations using requestAnimationFrame
+  // Enhanced touch handling with better next card revealing
   const onTouchStart = (e: React.TouchEvent) => {
     // Prevent handling touch if we're in a transition
     if (isTransitioning) return;
@@ -256,96 +272,102 @@ const ImageGallery: React.FC = () => {
       animationFrameIdRef.current = null;
     }
     
-    const touch = e.targetTouches[0].clientX;
-    touchStartRef.current = touch;
-    lastTouchXRef.current = touch;
-    touchStartTimeRef.current = Date.now();
-    velocityRef.current = 0;
+    const touch = e.targetTouches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
+    touchStartTimeRef.current = performance.now();
+    velocityXRef.current = 0;
+    setDragStartY(touch.clientY);
+    setDragY(0);
     setIsDragging(true);
     setDragOffset(0);
+    setSwipeDirection(null);
+    setSwipeProgress(0);
+    swipeDirectionRef.current = null;
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || touchStartRef.current === null || isTransitioning) return;
     
-    const currentTouch = e.targetTouches[0].clientX;
-    const deltaX = currentTouch - touchStartRef.current;
+    const touch = e.targetTouches[0];
+    const currentX = touch.clientX;
+    const currentY = touch.clientY;
+    const deltaX = currentX - touchStartRef.current.x;
+    const deltaY = currentY - touchStartRef.current.y;
     
     // Track velocity for momentum-based swiping
-    if (lastTouchXRef.current !== null) {
-      const timeDelta = Date.now() - (touchStartTimeRef.current || Date.now());
+    if (lastTouchRef.current !== null) {
+      const timeDelta = performance.now() - (touchStartTimeRef.current || performance.now());
       if (timeDelta > 0) {
-        const instantVelocity = (currentTouch - lastTouchXRef.current) / timeDelta;
+        const instantVelocityX = (currentX - lastTouchRef.current.x) / timeDelta;
         // Smooth velocity using exponential moving average
-        velocityRef.current = velocityRef.current * 0.7 + instantVelocity * 0.3;
+        velocityXRef.current = velocityXRef.current * 0.7 + instantVelocityX * 0.3;
       }
     }
-    lastTouchXRef.current = currentTouch;
     
-    // Apply resistance to make swipe feel more natural
-    const resistedDeltaX = deltaX * SWIPE_RESISTANCE;
+    lastTouchRef.current = { x: currentX, y: currentY };
     
-    // Update the drag offset for UI feedback
-    setDragOffset(resistedDeltaX);
-    
-    // Prevent default to stop page scrolling if we're clearly swiping horizontally
-    if (Math.abs(deltaX) > 10) {
+    // If we're clearly swiping horizontally
+    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      // Apply resistance to make swipe feel more natural
+      const resistedDeltaX = deltaX * SWIPE_RESISTANCE;
+      
+      // Update swipe direction for revealing next/prev card
+      const direction = deltaX < 0 ? 'left' : 'right';
+      if (swipeDirectionRef.current !== direction) {
+        swipeDirectionRef.current = direction;
+        setSwipeDirection(direction);
+      }
+      
+      // Calculate swipe progress (0 to 1)
+      const progress = Math.min(Math.abs(deltaX) / (screenWidthRef.current * 0.5), 1);
+      setSwipeProgress(progress);
+      
+      // Determine if we should update on this frame for better performance
+      if (animationFrameIdRef.current === null) {
+        animationFrameIdRef.current = requestAnimationFrame(() => {
+          setDragOffset(resistedDeltaX);
+          setDragY(deltaY * 0.2); // Minimal vertical movement for 3D effect
+          animationFrameIdRef.current = null;
+        });
+      }
+      
+      // Prevent default to stop page scrolling
       e.preventDefault();
     }
   };
 
-  const animateSwipeReset = () => {
-    // Get the starting offset
-    const startOffset = dragOffset;
-    const startTime = performance.now();
-    const duration = 300;
-    
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Use easing function for natural movement (ease-out)
-      const easeOutProgress = 1 - Math.pow(1 - progress, 3);
-      
-      // Calculate new position
-      const newOffset = startOffset * (1 - easeOutProgress);
-      
-      // Update position
-      setDragOffset(newOffset);
-      
-      // Continue animation if not complete
-      if (progress < 1) {
-        animationFrameIdRef.current = requestAnimationFrame(animate);
-      } else {
-        // Animation complete - reset everything
-        setDragOffset(0);
-        animationFrameIdRef.current = null;
-      }
-    };
-    
-    // Start the animation
-    animationFrameIdRef.current = requestAnimationFrame(animate);
-  };
-
+  // Enhanced swipe completion with better transition
   const animateSwipeCompletion = (direction: 'left' | 'right') => {
-    // Get the starting offset
     const startOffset = dragOffset;
-    const targetOffset = direction === 'left' ? -window.innerWidth : window.innerWidth;
+    const startY = dragY;
+    const targetOffset = direction === 'left' ? -screenWidthRef.current * 1.5 : screenWidthRef.current * 1.5;
     const startTime = performance.now();
-    const duration = 250;
+    const duration = 350; // Slightly longer for more dramatic exit
+    
+    // Set swipe direction for entrance animation of next card
+    setSwipeDirection(direction);
+    swipeDirectionRef.current = direction;
     
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Use easing function for natural movement (ease-in)
-      const easeInProgress = progress * progress;
+      // Update swipe progress for entrance animation
+      setSwipeProgress(progress);
       
-      // Calculate new position
-      const newOffset = startOffset + (targetOffset - startOffset) * easeInProgress;
+      // Use ease-out quad for smooth acceleration
+      const easedProgress = 1 - (1 - progress) * (1 - progress);
       
-      // Update position
+      // Calculate new position with acceleration
+      const newOffset = startOffset + (targetOffset - startOffset) * easedProgress;
+      
+      // Add a slight arc to the exit animation
+      const arcY = startY + (direction === 'left' ? 50 : -50) * Math.sin(progress * Math.PI);
+      
+      // Update positions
       setDragOffset(newOffset);
+      setDragY(arcY);
       
       // Continue animation if not complete
       if (progress < 1) {
@@ -353,6 +375,10 @@ const ImageGallery: React.FC = () => {
       } else {
         // Animation complete
         setDragOffset(0);
+        setDragY(0);
+        setSwipeProgress(0);
+        setSwipeDirection(null);
+        swipeDirectionRef.current = null;
         animationFrameIdRef.current = null;
         
         // Change the image
@@ -368,20 +394,107 @@ const ImageGallery: React.FC = () => {
     animationFrameIdRef.current = requestAnimationFrame(animate);
   };
 
+  // Reset with animated transition 
+  const animateSpringReset = () => {
+    const startOffset = dragOffset;
+    const startY = dragY;
+    const startTime = performance.now();
+    const startProgress = swipeProgress;
+    
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / SPRING_ANIMATION_DURATION, 1);
+      
+      // Elastic spring-like easing
+      // This creates a subtle bounce effect
+      const elasticProgress = progress === 1 ? 1 : 
+        1 - Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * (2 * Math.PI) / 3);
+      
+      // Calculate new position with spring effect
+      const newOffset = startOffset * (1 - elasticProgress);
+      const newY = startY * (1 - elasticProgress);
+      
+      // Update swipe progress for entrance/exit animations
+      setSwipeProgress(startProgress * (1 - elasticProgress));
+      
+      // Update positions
+      setDragOffset(newOffset);
+      setDragY(newY);
+      
+      // Continue animation if not complete
+      if (progress < 1) {
+        animationFrameIdRef.current = requestAnimationFrame(animate);
+      } else {
+        // Animation complete - reset everything
+        setDragOffset(0);
+        setDragY(0);
+        setSwipeProgress(0);
+        setSwipeDirection(null);
+        swipeDirectionRef.current = null;
+        animationFrameIdRef.current = null;
+      }
+    };
+    
+    // Start the animation
+    animationFrameIdRef.current = requestAnimationFrame(animate);
+  };
+
+  // Enhanced transform style for active card
+  const getActiveCardTransform = () => {
+    if (!isDragging || dragOffset === 0) return '';
+    
+    // Calculate the rotation based on the drag distance
+    const rotationFactor = Math.min(Math.abs(dragOffset) / (screenWidthRef.current * 0.5), 1);
+    const rotationAngle = MAX_ROTATION_ANGLE * rotationFactor * (dragOffset > 0 ? 1 : -1);
+    
+    // Return the transform style for the active card
+    return `translateX(${dragOffset}px) translateY(${dragY}px) rotate(${rotationAngle}deg) translateZ(0)`;
+  };
+  
+  // New transform style for next/previous cards
+  const getAdjacentCardTransform = (index: number) => {
+    if (!swipeDirection || swipeProgress === 0) return '';
+    
+    const isNext = (swipeDirection === 'left' && index === (currentIndex + 1) % images.length) ||
+                  (swipeDirection === 'right' && index === (currentIndex - 1 + images.length) % images.length);
+    
+    if (isNext) {
+      // Scale up from 0.9 to 1 as the current card moves away
+      const scale = 0.9 + (0.1 * swipeProgress);
+      // Move from behind to center
+      const xOffset = swipeDirection === 'left' ? 
+        20 - (20 * swipeProgress) : // Coming from right
+        -20 + (20 * swipeProgress); // Coming from left
+      
+      // Rotate slightly in the opposite direction of the leaving card
+      const rotationFactor = swipeDirection === 'left' ? -1 : 1;
+      const rotationAngle = 4 * rotationFactor * (1 - swipeProgress);
+      
+      return `translateX(${xOffset}px) rotate(${rotationAngle}deg) scale(${scale}) translateZ(0)`;
+    }
+    
+    return '';
+  };
+
   const onTouchEnd = () => {
     if (!isDragging || touchStartRef.current === null || isTransitioning) {
       setIsDragging(false);
       return;
     }
     
-    const touchEnd = lastTouchXRef.current;
-    const deltaX = touchEnd === null || touchStartRef.current === null ? 0 : touchEnd - touchStartRef.current;
-    const touchDuration = Date.now() - (touchStartTimeRef.current || Date.now());
+    const touchEnd = lastTouchRef.current;
+    if (!touchEnd) {
+      setIsDragging(false);
+      return;
+    }
+    
+    const deltaX = touchEnd.x - touchStartRef.current.x;
+    const touchDuration = performance.now() - (touchStartTimeRef.current || performance.now());
     
     // Detect swipe based on distance and velocity
-    const velocity = Math.abs(velocityRef.current);
+    const velocity = Math.abs(velocityXRef.current);
     const isQuickSwipe = velocity > VELOCITY_THRESHOLD;
-    const effectiveThreshold = isQuickSwipe ? SWIPE_THRESHOLD * 0.7 : SWIPE_THRESHOLD;
+    const effectiveThreshold = isQuickSwipe ? SWIPE_THRESHOLD * 0.6 : SWIPE_THRESHOLD;
     
     setIsDragging(false);
     
@@ -390,15 +503,15 @@ const ImageGallery: React.FC = () => {
       // Complete the swipe with animation
       animateSwipeCompletion(deltaX < 0 ? 'left' : 'right');
     } else {
-      // Not enough movement, animate back to center
-      animateSwipeReset();
+      // Not enough movement, animate back to center with spring effect
+      animateSpringReset();
     }
     
     // Reset touch tracking
     touchStartRef.current = null;
-    lastTouchXRef.current = null;
+    lastTouchRef.current = null;
     touchStartTimeRef.current = null;
-    velocityRef.current = 0;
+    velocityXRef.current = 0;
   };
 
   // For keyboard navigation
@@ -456,38 +569,6 @@ const ImageGallery: React.FC = () => {
     return <ImageGrid images={images} onClose={() => setShowGrid(false)} />;
   }
 
-  // Function to make drag-based navigation more interactive with better performance
-  const getTransformStyle = (index: number) => {
-    if (!isDragging || dragOffset === 0) return '';
-    
-    // Only apply drag effect to the active image and adjacent ones
-    const diff = index - currentIndex;
-    
-    // Handle circular navigation (for images at the edges)
-    const adjustedDiff = diff === images.length - 1 ? -1 : diff === -(images.length - 1) ? 1 : diff;
-    
-    if (Math.abs(adjustedDiff) > 1) return '';
-    
-    if (adjustedDiff === 0) {
-      // Main image - move with full offset
-      return `translateX(${dragOffset}px) scale(1)`;
-    } else if (adjustedDiff === -1 && dragOffset > 0) {
-      // Previous image coming in from left
-      const progress = Math.min(1, dragOffset / (window.innerWidth * 0.6));
-      const scale = 0.9 + progress * 0.1;
-      const translateX = -50 + dragOffset;
-      return `translateX(${translateX}px) scale(${scale})`;
-    } else if (adjustedDiff === 1 && dragOffset < 0) {
-      // Next image coming in from right
-      const progress = Math.min(1, -dragOffset / (window.innerWidth * 0.6));
-      const scale = 0.9 + progress * 0.1;
-      const translateX = 50 + dragOffset;
-      return `translateX(${translateX}px) scale(${scale})`;
-    }
-    
-    return '';
-  };
-
   return (
     <div 
       ref={galleryRef}
@@ -516,23 +597,44 @@ const ImageGallery: React.FC = () => {
             <ChevronRight className="w-7 h-7 md:w-10 md:h-10" />
           </button>
           
-          <div className="relative w-full h-[85vh] md:h-[95vh] will-change-transform">
-            {visibleImageIndices.map(index => (
-              <div 
-                key={images[index].id}
-                style={{ transform: getTransformStyle(index) }}
-                className={`transition-transform ${isTransitioning ? 'duration-500 ease-out' : 'duration-0'}`}
-              >
-                <ImageCard 
+          <div className="relative w-full h-[85vh] md:h-[95vh]">
+            {visibleImageIndices.map(index => {
+              const isActive = index === currentIndex;
+              const zIndex = isActive ? 30 : (Math.abs(index - currentIndex) === 1 ? 20 : 10);
+              
+              // Determine which transform to use based on the card's role
+              let transform = '';
+              if (isActive) {
+                transform = getActiveCardTransform();
+              } else {
+                transform = getAdjacentCardTransform(index);
+              }
+              
+              return (
+                <div 
                   key={images[index].id}
-                  image={images[index]}
-                  index={index}
-                  activeIndex={currentIndex}
-                  totalImages={images.length}
-                  isPreloaded={preloadedSrc === images[index].src}
-                />
-              </div>
-            ))}
+                  style={{ 
+                    transform: transform,
+                    willChange: (isDragging && isActive) || 
+                              (swipeProgress > 0 && Math.abs(index - currentIndex) === 1) ? 
+                                'transform' : 'auto',
+                    zIndex: zIndex,
+                    opacity: isActive ? 1 : (Math.abs(index - currentIndex) === 1 ? 
+                              0.7 + (swipeProgress * 0.3) : 0.5)
+                  }}
+                  className="transition-transform duration-300 ease-out"
+                >
+                  <ImageCard 
+                    key={images[index].id}
+                    image={images[index]}
+                    index={index}
+                    activeIndex={currentIndex}
+                    totalImages={images.length}
+                    isPreloaded={preloadedSrc === images[index].src}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
         
