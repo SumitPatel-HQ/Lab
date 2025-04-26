@@ -6,6 +6,21 @@ import ImageGrid from './ImageGrid';
 import { getAllImages, type Image as ImageType } from '../services/imageService';
 import { AnimatePresence, motion } from 'framer-motion';
 
+// Add isMobile detection utility
+const isMobileDevice = () => {
+  return (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) || 
+         (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+};
+
+// Enhanced configuration for hover effects
+const HOVER_CONFIG = {
+  MAX_TILT: 10, // Maximum rotation in degrees
+  SCALE_FACTOR: 1.05, // How much to scale up on hover
+  TRANSITION_SPEED: 0.3, // Transition speed in seconds
+  PERSPECTIVE: 1000, // Perspective value for 3D effect
+  SHADOW_COLOR: 'rgba(0,0,0,0.2)', // Shadow color
+};
+
 const MAX_VISIBLE_INDICATORS = 8; // Maximum number of indicators to show
 const PRELOAD_IMAGES = 3; // Preload nearby images
 const SWIPE_THRESHOLD = 10; // Minimal finger movement to trigger swipe
@@ -56,6 +71,11 @@ const ImageGallery: React.FC = () => {
   const modalTouchTimeRef = useRef<number | null>(null);
   const lastModalTouchRef = useRef<{x: number, y: number} | null>(null);
   const modalAnimFrameRef = useRef<number | null>(null);
+
+  // Add new states for tilt effect
+  const [isMobile, setIsMobile] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
 
   // Use memo to prevent unnecessary re-renders of image data
   const getImages = useCallback(async () => {
@@ -765,22 +785,77 @@ const ImageGallery: React.FC = () => {
     };
   }, []);
 
+  // Check if device is mobile on mount
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+  }, []);
+
+  // Add mouse position tracking function
+  const handleMouseMove = (e: React.MouseEvent, cardId: string) => {
+    if (isMobile) return;
+    
+    const element = e.currentTarget;
+    const rect = element.getBoundingClientRect();
+    
+    // Calculate position relative to the center of the image
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2; // -1 to 1
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2; // -1 to 1
+    
+    setMousePosition({ x, y });
+    setHoveredCardId(cardId);
+  };
+
+  // Reset position when mouse leaves
+  const handleMouseLeave = () => {
+    setHoveredCardId(null);
+  };
+
   // Render the ImageCard with clickable behavior
   const renderImageCard = (index: number, style: React.CSSProperties) => {
+    const image = images[index];
+    // Calculate tilt transform for the card
+    const tiltStyle: React.CSSProperties = {};
+    
+    if (hoveredCardId === image.id && !isMobile) {
+      // Only apply tilt if this card is hovered and not on mobile
+      const MAX_TILT = HOVER_CONFIG.MAX_TILT;
+      
+      // Calculate rotation based on mouse position
+      const rotateY = mousePosition.x * MAX_TILT;
+      const rotateX = -mousePosition.y * MAX_TILT; // Invert Y axis for natural feel
+      
+      // Enhance style with tilt effect
+      tiltStyle.transform = `perspective(${HOVER_CONFIG.PERSPECTIVE}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${HOVER_CONFIG.SCALE_FACTOR})`;
+      tiltStyle.transition = hoveredCardId ? `transform 0.05s linear` : `transform ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out`;
+      tiltStyle.willChange = 'transform';
+      tiltStyle.boxShadow = `0 20px 30px -10px ${HOVER_CONFIG.SHADOW_COLOR}`;
+      tiltStyle.zIndex = 40; // Raise above other cards
+    } else {
+      // Add gentle transition for when mouse leaves
+      tiltStyle.transition = `transform ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out, box-shadow ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out`;
+      tiltStyle.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
+      tiltStyle.boxShadow = '0 10px 30px -15px rgba(0,0,0,0)';
+    }
+    
     return (
       <div 
-        key={images[index].id}
-        style={style}
-        className="transition-transform duration-200 ease-out"
-        onClick={() => openImageModal(images[index])}
+        key={image.id}
+        style={{
+          ...style,
+          ...tiltStyle
+        }}
+        className="transition-transform duration-200 ease-out hover:z-50"
+        onClick={() => openImageModal(image)}
+        onMouseMove={(e) => handleMouseMove(e, image.id)}
+        onMouseLeave={handleMouseLeave}
       >
         <ImageCard 
-          key={images[index].id}
-          image={images[index]}
+          key={image.id}
+          image={image}
           index={index}
           activeIndex={currentIndex}
           totalImages={images.length}
-          isPreloaded={preloadedSrc === images[index].src}
+          isPreloaded={preloadedSrc === image.src}
         />
       </div>
     );
@@ -955,7 +1030,7 @@ const ImageGallery: React.FC = () => {
               </button>
               
               {/* Image */}
-              <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none">
+              <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none modal-image-container transition-transform duration-300 will-change-transform">
                 <img
                   src={modalImage.src}
                   alt={modalImage.title}
@@ -967,6 +1042,58 @@ const ImageGallery: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Add tilt effect to the modal image as well */}
+      {showModal && modalImage && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
+          onClick={closeImageModal}
+        >
+          {/* Blurred backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-12px" />
+          
+          {/* Modal content */}
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ 
+              scale: 1, 
+              y: modalDragY,
+              opacity: modalDragY > 0 ? Math.max(1 - (modalDragY / 400), 0.3) : 1
+            }}
+            exit={{ scale: 0.9, y: 100, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative z-10 max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[60%] max-h-[90vh] overflow-hidden rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={onModalTouchStart}
+            onTouchMove={onModalTouchMove}
+            onTouchEnd={onModalTouchEnd}
+            onMouseDown={onModalMouseDown}
+          >
+            {/* Close button */}
+            <button
+              className="absolute top-2 right-2 z-50 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 focus:bg-black/70 transition-all duration-200"
+              onClick={closeImageModal}
+              aria-label="Close image"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {/* Image */}
+            <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none modal-image-container transition-transform duration-300 will-change-transform">
+              <img
+                src={modalImage.src}
+                alt={modalImage.title}
+                className="object-contain max-h-[90vh] w-auto"
+                draggable={false}
+              />
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };

@@ -3,9 +3,32 @@ import { ArrowLeft, LayoutGrid, ChevronDown } from 'lucide-react';
 import type { Image } from '../services/imageService';
 import ImageModal from './ImageModal';
 
+// Add isMobile detection utility
+const isMobileDevice = () => {
+  return (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) || 
+         (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+};
+
+// Enhanced configuration for hover effects
+const HOVER_CONFIG = {
+  MAX_TILT: 10, // Maximum rotation in degrees
+  SCALE_FACTOR: 1.7, // How much to scale up on hover
+  TRANSITION_SPEED: 0.7, // Transition speed in seconds
+  PERSPECTIVE: 1000, // Perspective value for 3D effect
+  SHADOW_COLOR: 'rgba(0,0,0,0.2)', // Shadow color
+};
+
 interface ImageGridProps {
   images: Image[];
   onClose: () => void;
+}
+
+// Add tilt interface for tracking tilt state per image
+interface TiltState {
+  id: string;
+  rotateX: number;
+  rotateY: number;
+  isHovering: boolean;
 }
 
 const IMAGES_PER_LOAD = 40; // Number of images to load in each batch
@@ -27,6 +50,15 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const observedElements = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // Add new states for tilt effect
+  const [isMobile, setIsMobile] = useState(false);
+  const [tiltStates, setTiltStates] = useState<Record<string, TiltState>>({});
+  
+  // Check if device is mobile on mount
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+  }, []);
+  
   // Setup smooth scroll behavior when component mounts
   useEffect(() => {
     // Set smooth scrolling for the entire document
@@ -350,6 +382,79 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     }
   };
 
+  // Add tilt effect handlers
+  const handleMouseMove = (e: React.MouseEvent, imageId: string) => {
+    if (isMobile) return;
+    
+    const element = e.currentTarget;
+    const rect = element.getBoundingClientRect();
+    
+    // Calculate position relative to the center of the image
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2; // -1 to 1
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2; // -1 to 1
+    
+    const MAX_TILT = HOVER_CONFIG.MAX_TILT;
+    
+    setTiltStates(prev => ({
+      ...prev,
+      [imageId]: {
+        id: imageId,
+        rotateX: -y * MAX_TILT,
+        rotateY: x * MAX_TILT,
+        isHovering: true
+      }
+    }));
+  };
+  
+  const handleMouseEnter = (imageId: string) => {
+    if (isMobile) return;
+    
+    setTiltStates(prev => ({
+      ...prev,
+      [imageId]: {
+        id: imageId,
+        rotateX: 0,
+        rotateY: 0,
+        isHovering: true
+      }
+    }));
+  };
+  
+  const handleMouseLeave = (imageId: string) => {
+    if (isMobile) return;
+    
+    setTiltStates(prev => ({
+      ...prev,
+      [imageId]: {
+        ...prev[imageId],
+        isHovering: false,
+        rotateX: 0,
+        rotateY: 0
+      }
+    }));
+  };
+  
+  // Get tilt style for an image
+  const getTiltStyle = (imageId: string): React.CSSProperties => {
+    const tiltState = tiltStates[imageId];
+    
+    if (!tiltState || !tiltState.isHovering || isMobile) {
+      return {
+        transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)',
+        transition: `transform ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out, box-shadow ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out`,
+        boxShadow: '0 10px 20px -10px rgba(0,0,0,0)'
+      };
+    }
+    
+    return {
+      transform: `perspective(${HOVER_CONFIG.PERSPECTIVE}px) rotateX(${tiltState.rotateX}deg) rotateY(${tiltState.rotateY}deg) scale(${HOVER_CONFIG.SCALE_FACTOR})`,
+      transition: 'transform 0.05s linear',
+      willChange: 'transform',
+      zIndex: 10,
+      boxShadow: `0 20px 30px -10px ${HOVER_CONFIG.SHADOW_COLOR}`
+    };
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6 overscroll-none">
       <div className="max-w-7xl mx-auto">
@@ -443,13 +548,19 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
                 isNewlyLoaded(index) 
                   ? 'animate-card-appear opacity-0' 
                   : ''
-              } group`}
+              } group relative`}
               style={{
                 animationDelay: `${Math.min(index % IMAGES_PER_LOAD * 50, 1000)}ms`,
               }}
               onClick={() => openModal(image)}
+              onMouseMove={(e) => handleMouseMove(e, image.id)}
+              onMouseEnter={() => handleMouseEnter(image.id)}
+              onMouseLeave={() => handleMouseLeave(image.id)}
             >
-              <div className="relative overflow-hidden rounded-lg shadow-md group-hover:shadow-xl transition-all duration-300 transform group-hover:scale-[1.02]">
+              <div 
+                className="relative overflow-hidden rounded-lg shadow-md group-hover:shadow-xl duration-300"
+                style={getTiltStyle(image.id)}
+              >
                 <div className={`${image.ratio === '2:3' ? 'pb-[150%]' : 'pb-[66.67%]'} bg-gray-800 relative`}>
                   <img 
                     className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 opacity-0 hover:opacity-100"
@@ -509,6 +620,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
           onPrev={goToPrevImage}
           totalImages={visibleImages.length}
           currentIndex={visibleImages.findIndex(img => img.id === selectedImage.id)}
+          enableTilt={!isMobile} // Pass tilt enablement to modal
         />
       )}
     </div>

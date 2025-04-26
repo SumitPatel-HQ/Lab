@@ -2,6 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Image } from '../services/imageService';
 
+// Enhanced configuration for hover effects
+const HOVER_CONFIG = {
+  MAX_TILT: 5, // Maximum rotation in degrees (reduced for modal)
+  SCALE_FACTOR: 1.02, // How much to scale up on hover (reduced for modal)
+  TRANSITION_SPEED: 0.3, // Transition speed in seconds
+  PERSPECTIVE: 1000, // Perspective value for 3D effect
+  SHADOW_COLOR: 'rgba(0,0,0,0.3)', // Shadow color
+};
+
 interface ImageModalProps {
   image: Image | null;
   onClose: () => void;
@@ -9,6 +18,7 @@ interface ImageModalProps {
   onNext?: () => void;
   totalImages?: number;
   currentIndex?: number;
+  enableTilt?: boolean; // Add new prop for tilt effect
 }
 
 const SWIPE_THRESHOLD = 80; // Minimum distance in pixels to trigger a swipe
@@ -16,6 +26,7 @@ const SWIPE_RESISTANCE = 0.4; // Resistance factor for more natural swipe feelin
 const DISMISS_THRESHOLD = 100; // Pixels needed to dismiss modal via drag
 const DISMISS_VELOCITY_THRESHOLD = 0.5; // Velocity needed to dismiss modal
 const ANIMATION_DURATION = 200; // Faster animation for better UX
+const MAX_TILT = HOVER_CONFIG.MAX_TILT; // Maximum tilt angle for the modal image
 
 const ImageModal: React.FC<ImageModalProps> = ({ 
   image, 
@@ -23,7 +34,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
   onPrev, 
   onNext,
   totalImages = 1,
-  currentIndex = 0
+  currentIndex = 0,
+  enableTilt = true // Default to enabled
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -42,8 +54,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [isDraggingVertical, setIsDraggingVertical] = useState(false);
   const [dragVelocityY, setDragVelocityY] = useState(0);
   
+  // Add tilt effect state
+  const [tiltX, setTiltX] = useState(0);
+  const [tiltY, setTiltY] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+  
   const modalRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const touchStartTimeRef = useRef<number | null>(null);
@@ -63,6 +81,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
     setSwipeDirection(null);
     setDragY(0);
     setIsDraggingVertical(false);
+    setTiltX(0);
+    setTiltY(0);
+    setIsHovering(false);
     
     // Cancel any pending animation frames
     if (animationFrameIdRef.current) {
@@ -398,12 +419,94 @@ const ImageModal: React.FC<ImageModalProps> = ({
     }
   };
 
+  // Add tilt effect handlers
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!enableTilt || scale > 1 || isSwiping || isDraggingVertical) return;
+    
+    if (imageContainerRef.current) {
+      const rect = imageContainerRef.current.getBoundingClientRect();
+      
+      // Calculate position relative to the center of the image
+      const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2; // -1 to 1
+      const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2; // -1 to 1
+      
+      // Set tilt values - opposite Y for natural feel
+      setTiltX(-y * MAX_TILT);
+      setTiltY(x * MAX_TILT);
+    }
+  };
+  
+  const handleMouseEnter = () => {
+    if (!enableTilt || scale > 1) return;
+    setIsHovering(true);
+  };
+  
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+    setTiltX(0);
+    setTiltY(0);
+  };
+  
+  // Calculate the transform based on all active effects
+  const getImageTransform = () => {
+    let transform = '';
+    
+    // Apply perspective for 3D effect
+    transform += `perspective(${HOVER_CONFIG.PERSPECTIVE}px) `;
+    
+    // Apply scale if zoomed or hovering
+    if (scale !== 1) {
+      transform += `scale(${scale}) `;
+    } else if (isHovering && enableTilt) {
+      transform += `scale(${HOVER_CONFIG.SCALE_FACTOR}) `;
+    }
+    
+    // Apply horizontal swipe offset
+    if (swipeOffset !== 0) {
+      transform += `translateX(${swipeOffset}px) `;
+    }
+    
+    // Apply vertical drag
+    if (dragY !== 0) {
+      transform += `translateY(${dragY}px) `;
+    }
+    
+    // Apply tilt when hovering and tilt is enabled
+    if (isHovering && enableTilt && scale === 1 && !isSwiping && !isDraggingVertical) {
+      transform += `rotateX(${tiltX}deg) rotateY(${tiltY}deg) `;
+    }
+    
+    return transform;
+  };
+  
+  // Calculate transition styles based on state
+  const getImageTransition = () => {
+    if (isSwiping || isDraggingVertical) {
+      // No transition during active swiping or dragging
+      return 'none';
+    } else if (isHovering && enableTilt) {
+      // Very quick transition during hover for responsiveness
+      return 'transform 0.05s linear';
+    }
+    
+    // Smooth transition when returning to resting position
+    return `transform ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out`;
+  };
+
+  // Calculate shadow style based on state
+  const getImageShadow = () => {
+    if (isHovering && enableTilt && scale === 1 && !isSwiping && !isDraggingVertical) {
+      return `0 20px 40px -10px ${HOVER_CONFIG.SHADOW_COLOR}`;
+    }
+    return '0 10px 30px -15px rgba(0,0,0,0.2)';
+  };
+
   if (!image) return null;
 
   return (
     <div 
       ref={modalRef}
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-[15px] flex items-center justify-center p-4 md:p-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[15px]"
       onClick={handleBackgroundClick}
     >
       <div className="absolute inset-0 animate-modal-in" />
@@ -435,7 +538,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
             }}
             aria-label="Previous image"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-6 h-6 md:w-8 md:h-8" />
           </button>
         )}
         
@@ -448,79 +551,83 @@ const ImageModal: React.FC<ImageModalProps> = ({
             }}
             aria-label="Next image"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-6 h-6 md:w-8 md:h-8" />
           </button>
         )}
         
-        {/* Swipe direction indicators */}
-        {swipeDirection === 'left' && (
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 z-40 text-white/30 sm:hidden">
-            <ChevronRight className="w-12 h-12" />
-          </div>
-        )}
-        
-        {swipeDirection === 'right' && (
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 z-40 text-white/30 sm:hidden">
-            <ChevronLeft className="w-12 h-12" />
-          </div>
-        )}
-        
+        {/* Image container */}
         <div 
-          className="relative flex items-center justify-center overflow-hidden rounded-3xl bg-black shadow-3xl"
+          ref={imageContainerRef}
+          className="relative max-w-[90vw] max-h-[90vh] overflow-hidden rounded-xl"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
           onDoubleClick={handleDoubleClick}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            willChange: 'transform',
+            userSelect: 'none'
+          }}
         >
-          {!loaded && !error && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )}
-          
-          {error ? (
-            <div className="p-8 bg-gray-800 rounded-lg">
-              <p className="text-white">Failed to load image</p>
-            </div>
-          ) : (
-            <img
-              ref={imageRef}
-              src={image.src}
-              alt={image.title}
-              className={`max-h-[90vh] max-w-full object-contain transition-opacity duration-300 ${
-                loaded ? 'opacity-100' : 'opacity-0'
-              } ${isAnimating ? 'animate-image-zoom-in' : ''}`}
+          {image && (
+            <div 
+              className={`w-full h-full flex items-center justify-center relative bg-black/50 rounded-xl overflow-hidden`}
               style={{
-                transform: `translateX(${swipeOffset}px) scale(${scale}) translate(${positionX}px, ${positionY}px)`,
-                transformOrigin: 'center',
-                transition: scale === 1 && !isSwiping ? 'transform 0.2s ease-out' : 'none',
-                willChange: 'transform'
+                transform: getImageTransform(),
+                transition: getImageTransition(),
+                boxShadow: getImageShadow(),
+                willChange: isHovering || isDraggingVertical || isSwiping ? 'transform, box-shadow' : 'auto'
               }}
-              onLoad={() => setLoaded(true)}
-              onError={() => setError(true)}
-              draggable={false}
-            />
-          )}
-          
-          {/* Image caption with gradient background for better visibility */}
-          {image.title && (
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent pt-12 pb-4 px-4">
-              <h3 className="text-gray-400 text-left md:text-left font-small ">{image.title}</h3>
-              {(image as any).caption && (
-                <p className="text-white/80 text-sm mt-1 text-center md:text-left">{(image as any).caption}</p>
+            >
+              {/* Image loading indicator */}
+              {!loaded && !error && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                </div>
               )}
+              
+              {/* Error message */}
+              {error && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="bg-red-900/80 text-white px-4 py-2 rounded-md">
+                    Failed to load image
+                  </div>
+                </div>
+              )}
+              
+              {/* Image */}
+              <img
+                ref={imageRef}
+                src={image.src}
+                alt={image.title || "Image"}
+                className={`max-w-full max-h-[90vh] object-contain transition-opacity duration-300 ${
+                  loaded ? 'opacity-100' : 'opacity-0'
+                } ${isAnimating ? 'animate-fade-in' : ''}`}
+                draggable={false}
+                onLoad={() => setLoaded(true)}
+                onError={() => setError(true)}
+              />
             </div>
           )}
         </div>
         
-        {/* {totalImages > 1 && (
-          <div className="absolute top-4 left-4 pointer-events-none">
-            <p className="text-white/90 text-sm bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">
-              {currentIndex + 1} / {totalImages}
-            </p>
+        
+        
+        {/* Swipe direction indicators */}
+        {swipeDirection === 'left' && (
+          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70">
+            <ChevronLeft className="w-12 h-12" />
           </div>
-        )} */}
+        )}
+        
+        {swipeDirection === 'right' && (
+          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/70">
+            <ChevronRight className="w-12 h-12" />
+          </div>
+        )}
       </div>
     </div>
   );
