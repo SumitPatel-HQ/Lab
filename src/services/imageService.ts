@@ -101,7 +101,7 @@ export const getInitialImages = (count = 10): Image[] => {
     title: img.title || `Image ${img.id}`,
     src: correctImagePath(img.src),
     ratio: img.ratio || '2:3',
-    category: 'Leonardo AI',
+    category: 'Imaginalab AI',
     loaded: imageCache.get(correctImagePath(img.src)) || false
   }));
 };
@@ -114,7 +114,7 @@ export const getImageBatch = (startIndex: number, count: number): Image[] => {
     title: img.title || `Image ${img.id}`,
     src: correctImagePath(img.src),
     ratio: img.ratio || '2:3',
-    category: 'Leonardo AI',
+    category: 'Imaginalab AI',
     loaded: imageCache.get(correctImagePath(img.src)) || false
   }));
 };
@@ -147,7 +147,7 @@ export const getAllImages = (): Image[] => {
       title: img.title || `Image ${img.id}`,
       src,
       ratio: img.ratio || '2:3',
-      category: 'Leonardo AI',
+      category: 'Imaginalab AI',
       loaded: imageCache.get(src) || false
     };
   });

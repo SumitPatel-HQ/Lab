@@ -1,19 +1,24 @@
 // local image gallery
 import React, { useEffect, useCallback, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Shuffle, Library } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Shuffle, Library, X } from 'lucide-react';
 import ImageCard from './ImageCard';
 import ImageGrid from './ImageGrid';
 import { getAllImages, type Image as ImageType } from '../services/imageService';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const MAX_VISIBLE_INDICATORS = 8; // Maximum number of indicators to show
 const PRELOAD_IMAGES = 3; // Preload nearby images
-const SWIPE_THRESHOLD = 8; // Extremely minimal distance needed to trigger a swipe
-const VELOCITY_THRESHOLD = 0.02; // Detect even the slightest movement
-const SWIPE_RESISTANCE = 0.2; // Very low resistance for immediate movement
+const SWIPE_THRESHOLD = 10; // Minimal finger movement to trigger swipe
+const VELOCITY_THRESHOLD = 0.02; // Detect even the slightest flick
+const SWIPE_RESISTANCE = 0.2; // Almost no resistance for immediate movement
 const MAX_ROTATION_ANGLE = 8; // Slightly reduced rotation for faster perception
 const SPRING_ANIMATION_DURATION = 100; // Ultra-fast spring reset
-const SWIPE_EXIT_DURATION = 100; // Ultra-fast exit animation (100ms)
+const SWIPE_EXIT_DURATION = 100; // Ultra-fast exit animation
 const NEXT_CARD_VISIBILITY_THRESHOLD = 0.1; // Show next card after just 10% of swipe progress
+
+// Add new modal-related constants
+const MODAL_DRAG_THRESHOLD = 100; // Pixels needed to dismiss modal via drag
+const MODAL_DRAG_VELOCITY_THRESHOLD = 0.5; // Velocity needed to dismiss modal
 
 const ImageGallery: React.FC = () => {
   const [images, setImages] = useState<ImageType[]>([]);
@@ -30,6 +35,11 @@ const ImageGallery: React.FC = () => {
   const [preloadedSrc, setPreloadedSrc] = useState<string | null>(null);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [swipeProgress, setSwipeProgress] = useState(0);
+  const [showModal, setShowModal] = useState(false);
+  const [modalImage, setModalImage] = useState<ImageType | null>(null);
+  const [modalDragY, setModalDragY] = useState(0);
+  const [isModalDragging, setIsModalDragging] = useState(false);
+  const [modalDragVelocity, setModalDragVelocity] = useState(0);
   const prevIndexRef = useRef(currentIndex);
   const touchStartRef = useRef<{x: number, y: number} | null>(null);
   const touchStartTimeRef = useRef<number | null>(null);
@@ -40,6 +50,12 @@ const ImageGallery: React.FC = () => {
   const galleryRef = useRef<HTMLDivElement>(null);
   const screenWidthRef = useRef(typeof window !== 'undefined' ? window.innerWidth : 0);
   const swipeDirectionRef = useRef<'left' | 'right' | null>(null);
+
+  // Add modal-related refs
+  const modalTouchStartRef = useRef<{x: number, y: number} | null>(null);
+  const modalTouchTimeRef = useRef<number | null>(null);
+  const lastModalTouchRef = useRef<{x: number, y: number} | null>(null);
+  const modalAnimFrameRef = useRef<number | null>(null);
 
   // Use memo to prevent unnecessary re-renders of image data
   const getImages = useCallback(async () => {
@@ -112,13 +128,13 @@ const ImageGallery: React.FC = () => {
     };
   }, [handleScroll, hideTimeout]);
 
-  // Add transition animation when changing slides
+  // Make transitions almost instant
   useEffect(() => {
     if (prevIndexRef.current !== currentIndex) {
       setIsTransitioning(true);
       const timer = setTimeout(() => {
         setIsTransitioning(false);
-      }, 120); // Ultra-fast transition
+      }, 100); // Ultra-fast transition (was 200ms)
       
       prevIndexRef.current = currentIndex;
       
@@ -263,7 +279,7 @@ const ImageGallery: React.FC = () => {
     imgLoader.src = newImageSrc;
   };
 
-  // Optimized touch start with pre-initialization
+  // Lightning-fast touch handling
   const onTouchStart = (e: React.TouchEvent) => {
     // Prevent handling touch if we're in a transition
     if (isTransitioning) return;
@@ -279,99 +295,90 @@ const ImageGallery: React.FC = () => {
     lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
     touchStartTimeRef.current = performance.now();
     velocityXRef.current = 0;
-    
-    // Pre-initialize swipe direction based on touch position for faster response
-    const screenCenter = screenWidthRef.current / 2;
-    const initialDirection = touch.clientX < screenCenter ? 'left' : 'right';
-    swipeDirectionRef.current = initialDirection;
-    setSwipeDirection(initialDirection);
-    
+    setDragStartY(touch.clientY);
+    setDragY(0);
     setIsDragging(true);
     setDragOffset(0);
-    setDragY(0);
-    setSwipeProgress(0.1); // Start with slight progress to show next card immediately
+    setSwipeDirection(null);
+    setSwipeProgress(0);
+    swipeDirectionRef.current = null;
   };
 
-  // Ultra-responsive touch move with minimal detection
   const onTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || touchStartRef.current === null || isTransitioning) return;
     
-    // Always prevent default
-    e.preventDefault();
-    
+    // Extract touch data directly
     const touch = e.targetTouches[0];
     const deltaX = touch.clientX - touchStartRef.current.x;
     
-    // Immediate velocity calculation with heavy weighting on current movement
+    // Always prevent default for maximum responsiveness
+    e.preventDefault();
+    
+    // Instant velocity calculation with maximum weight on current movement
     if (lastTouchRef.current !== null) {
-      const timeDelta = Math.max(1, performance.now() - (touchStartTimeRef.current || performance.now()));
-      const instantVelocityX = (touch.clientX - lastTouchRef.current.x) / timeDelta;
-      // Almost entirely based on current movement
-      velocityXRef.current = velocityXRef.current * 0.1 + instantVelocityX * 0.9;
+      const timeDelta = performance.now() - (touchStartTimeRef.current || performance.now());
+      if (timeDelta > 0) {
+        const instantVelocityX = (touch.clientX - lastTouchRef.current.x) / timeDelta;
+        // 90% weight on current movement for instantaneous response
+        velocityXRef.current = velocityXRef.current * 0.1 + instantVelocityX * 0.9;
+      }
     }
     
+    // Update last position
     lastTouchRef.current = { x: touch.clientX, y: touch.clientY };
     
-    // Apply minimal resistance for extremely responsive feel
+    // Minimal resistance for immediate card movement
     const resistedDeltaX = deltaX * SWIPE_RESISTANCE;
     
-    // Update direction immediately for any movement
+    // Set direction immediately
     const direction = deltaX < 0 ? 'left' : 'right';
-    swipeDirectionRef.current = direction;
-    setSwipeDirection(direction);
-    
-    // Calculate progress with very little movement required
-    const progress = Math.min(Math.abs(deltaX) / (screenWidthRef.current * 0.15), 1);
-    
-    // Check if we've moved enough to auto-complete the swipe
-    if (progress > 0.5 || Math.abs(velocityXRef.current) > VELOCITY_THRESHOLD * 2) {
-      // Auto-complete swipe if we've moved halfway or have sufficient velocity
-      animateSwipeCompletion(direction);
-      return;
+    if (swipeDirectionRef.current !== direction) {
+      swipeDirectionRef.current = direction;
+      setSwipeDirection(direction);
     }
     
-    // Update UI directly
+    // Require very little movement to reach full swipe progress
+    const progress = Math.min(Math.abs(deltaX) / (screenWidthRef.current * 0.1), 1);
     setSwipeProgress(progress);
+    
+    // Direct DOM-like updates for zero-lag response
     setDragOffset(resistedDeltaX);
+    setDragY(0);
+    
+    // Auto-complete swipe if we pass 70% progress
+    if (progress > 0.7 && !isTransitioning) {
+      animateSwipeCompletion(direction);
+    }
   };
 
-  // Instant swipe completion with minimal animation
+  // Instant swipe completion animation
   const animateSwipeCompletion = (direction: 'left' | 'right') => {
-    // Cancel any ongoing touch handling
+    // Stop any further dragging during the completion
     setIsDragging(false);
     
     const startOffset = dragOffset;
-    const targetOffset = direction === 'left' ? -screenWidthRef.current * 0.5 : screenWidthRef.current * 0.5;
+    const targetOffset = direction === 'left' ? -screenWidthRef.current * 0.6 : screenWidthRef.current * 0.6;
     const startTime = performance.now();
     const duration = SWIPE_EXIT_DURATION;
     
-    // Set direction for entrance animation
-    setSwipeDirection(direction);
-    
-    // Directly compute next index
+    // Precompute next index for faster updates
     const nextIndex = direction === 'left' 
       ? (currentIndex + 1) % images.length 
       : (currentIndex - 1 + images.length) % images.length;
     
-    // Preload the next image immediately
-    if (images[nextIndex]) {
-      const img = new Image();
-      img.src = images[nextIndex].src;
-    }
-    
-    // Ultra-fast, simplified animation function
+    // Ultra-fast animation
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       
-      // Linear animation for speed - minimal easing
+      // Simple linear animation for maximum speed perception
       setSwipeProgress(progress);
       setDragOffset(startOffset + (targetOffset - startOffset) * progress);
       
       if (progress < 1) {
         animationFrameIdRef.current = requestAnimationFrame(animate);
       } else {
-        // Skip any further animations, immediately set new index
+        // Complete immediately
         setDragOffset(0);
         setDragY(0);
         setSwipeProgress(0);
@@ -379,28 +386,13 @@ const ImageGallery: React.FC = () => {
         swipeDirectionRef.current = null;
         animationFrameIdRef.current = null;
         
-        // Set index directly
+        // Change the image immediately
         setCurrentIndex(nextIndex);
       }
     };
     
-    // Skip animation entirely for extremely small movements
-    if (Math.abs(startOffset) < 5 && Math.abs(velocityXRef.current) > VELOCITY_THRESHOLD) {
-      // Immediately change image without animation
-      setDragOffset(0);
-      setDragY(0);
-      setSwipeProgress(0);
-      setSwipeDirection(null);
-      swipeDirectionRef.current = null;
-      if (animationFrameIdRef.current !== null) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-        animationFrameIdRef.current = null;
-      }
-      setCurrentIndex(nextIndex);
-    } else {
-      // Very brief animation for larger movements
-      animationFrameIdRef.current = requestAnimationFrame(animate);
-    }
+    // Start animation immediately
+    animationFrameIdRef.current = requestAnimationFrame(animate);
   };
 
   // Reset with minimal animation
@@ -436,7 +428,7 @@ const ImageGallery: React.FC = () => {
     animationFrameIdRef.current = requestAnimationFrame(animate);
   };
 
-  // Ultra-fast touch end handler
+  // Hyper-responsive touch end handler
   const onTouchEnd = () => {
     if (!isDragging || touchStartRef.current === null || isTransitioning) {
       setIsDragging(false);
@@ -450,39 +442,24 @@ const ImageGallery: React.FC = () => {
     }
     
     const deltaX = touchEnd.x - touchStartRef.current.x;
-    const totalMovement = Math.abs(deltaX);
     
-    // Detect even minimal swipes and quick taps
+    // Consider almost any movement as a swipe
     const velocity = Math.abs(velocityXRef.current);
     const isQuickSwipe = velocity > VELOCITY_THRESHOLD;
-    const isTinyMovement = totalMovement <= SWIPE_THRESHOLD;
+    
+    // Require almost no movement for a swipe
+    const effectiveThreshold = isQuickSwipe ? 1 : SWIPE_THRESHOLD;
     
     setIsDragging(false);
     
-    // Complete swipe with extremely low threshold
-    // Even a tiny movement should trigger if it's quick enough
-    if (totalMovement >= SWIPE_THRESHOLD || isQuickSwipe) {
-      // For extremely small movements, use direction based on screen position
-      const direction = isTinyMovement && isQuickSwipe 
-        ? (touchEnd.x < screenWidthRef.current / 2 ? 'left' : 'right')
-        : (deltaX < 0 ? 'left' : 'right');
-      
-      animateSwipeCompletion(direction);
+    // Complete swipe with almost no threshold
+    if (Math.abs(deltaX) >= effectiveThreshold || isQuickSwipe) {
+      animateSwipeCompletion(deltaX < 0 ? 'left' : 'right');
     } else {
-      // Only reset if there's significant offset
-      if (Math.abs(dragOffset) > 5) {
-        animateSpringReset();
-      } else {
-        // Skip reset animation entirely for tiny movements
-        setDragOffset(0);
-        setDragY(0);
-        setSwipeProgress(0);
-        setSwipeDirection(null);
-        swipeDirectionRef.current = null;
-      }
+      animateSpringReset();
     }
     
-    // Reset touch tracking
+    // Reset tracking
     touchStartRef.current = null;
     lastTouchRef.current = null;
     touchStartTimeRef.current = null;
@@ -575,6 +552,240 @@ const ImageGallery: React.FC = () => {
     return '';
   };
 
+  // Add new function to open modal
+  const openImageModal = (image: ImageType) => {
+    setModalImage(image);
+    setShowModal(true);
+    setModalDragY(0);
+    setIsModalDragging(false);
+    setModalDragVelocity(0);
+  };
+
+  // Add new function to close modal
+  const closeImageModal = () => {
+    setShowModal(false);
+    setTimeout(() => {
+      setModalImage(null);
+    }, 300); // Clear after animation completes
+  };
+
+  // Add modal touch handlers
+  const onModalTouchStart = (e: React.TouchEvent) => {
+    if (modalAnimFrameRef.current) {
+      cancelAnimationFrame(modalAnimFrameRef.current);
+      modalAnimFrameRef.current = null;
+    }
+    
+    const touch = e.touches[0];
+    modalTouchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    lastModalTouchRef.current = { x: touch.clientX, y: touch.clientY };
+    modalTouchTimeRef.current = performance.now();
+    setIsModalDragging(true);
+  };
+
+  const onModalTouchMove = (e: React.TouchEvent) => {
+    if (!isModalDragging || !modalTouchStartRef.current) return;
+    
+    const touch = e.touches[0];
+    const deltaY = touch.clientY - modalTouchStartRef.current.y;
+    
+    // Only allow downward dragging (deltaY > 0)
+    if (deltaY < 0) {
+      setModalDragY(0);
+      return;
+    }
+    
+    // Track velocity for momentum-based dismissal
+    if (lastModalTouchRef.current) {
+      const timeDelta = performance.now() - (modalTouchTimeRef.current || performance.now());
+      if (timeDelta > 0) {
+        const instantVelocityY = (touch.clientY - lastModalTouchRef.current.y) / timeDelta;
+        setModalDragVelocity(instantVelocityY);
+      }
+    }
+    
+    // Update reference
+    lastModalTouchRef.current = { x: touch.clientX, y: touch.clientY };
+    
+    // Calculate resistance to make it harder to drag as you pull down
+    const resistedDeltaY = Math.min(deltaY * 0.5, screenWidthRef.current * 0.3);
+    setModalDragY(resistedDeltaY);
+    
+    // Add opacity based on drag distance
+    const opacity = Math.max(1 - (resistedDeltaY / 400), 0.3);
+    
+    // If user drags far enough, dismiss modal
+    if (resistedDeltaY > MODAL_DRAG_THRESHOLD) {
+      closeImageModal();
+      setIsModalDragging(false);
+    }
+  };
+
+  const onModalTouchEnd = () => {
+    if (!isModalDragging) return;
+    
+    // If velocity is high enough, dismiss modal
+    if (modalDragVelocity > MODAL_DRAG_VELOCITY_THRESHOLD) {
+      closeImageModal();
+    } else if (modalDragY > 0) {
+      // Animate back to center with spring effect
+      const startY = modalDragY;
+      const startTime = performance.now();
+      const duration = 300;
+      
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Spring-like easing
+        const easedProgress = 1 - Math.pow(1 - progress, 2);
+        const newY = startY * (1 - easedProgress);
+        
+        setModalDragY(newY);
+        
+        if (progress < 1) {
+          modalAnimFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          setModalDragY(0);
+          modalAnimFrameRef.current = null;
+        }
+      };
+      
+      modalAnimFrameRef.current = requestAnimationFrame(animate);
+    }
+    
+    // Reset state
+    setIsModalDragging(false);
+    modalTouchStartRef.current = null;
+    lastModalTouchRef.current = null;
+    modalTouchTimeRef.current = null;
+  };
+
+  // Add mouse handlers for non-touch devices
+  const onModalMouseDown = (e: React.MouseEvent) => {
+    modalTouchStartRef.current = { x: e.clientX, y: e.clientY };
+    lastModalTouchRef.current = { x: e.clientX, y: e.clientY };
+    modalTouchTimeRef.current = performance.now();
+    setIsModalDragging(true);
+    
+    // Add document-level handlers that will be removed on mouse up
+    document.addEventListener('mousemove', onModalMouseMove);
+    document.addEventListener('mouseup', onModalMouseUp);
+  };
+
+  const onModalMouseMove = (e: MouseEvent) => {
+    if (!isModalDragging || !modalTouchStartRef.current) return;
+    
+    const deltaY = e.clientY - modalTouchStartRef.current.y;
+    
+    // Only allow downward dragging
+    if (deltaY < 0) {
+      setModalDragY(0);
+      return;
+    }
+    
+    // Track velocity for momentum-based dismissal
+    if (lastModalTouchRef.current && modalTouchTimeRef.current) {
+      const timeDelta = performance.now() - modalTouchTimeRef.current;
+      if (timeDelta > 0) {
+        const instantVelocityY = (e.clientY - lastModalTouchRef.current.y) / timeDelta;
+        setModalDragVelocity(instantVelocityY);
+      }
+    }
+    
+    // Update reference
+    lastModalTouchRef.current = { x: e.clientX, y: e.clientY };
+    
+    // Apply resistance
+    const resistedDeltaY = Math.min(deltaY * 0.5, screenWidthRef.current * 0.3);
+    setModalDragY(resistedDeltaY);
+    
+    // If user drags far enough, dismiss modal
+    if (resistedDeltaY > MODAL_DRAG_THRESHOLD) {
+      closeImageModal();
+      setIsModalDragging(false);
+      
+      // Clean up document listeners
+      document.removeEventListener('mousemove', onModalMouseMove);
+      document.removeEventListener('mouseup', onModalMouseUp);
+    }
+  };
+
+  const onModalMouseUp = () => {
+    // Same logic as touch end
+    if (!isModalDragging) return;
+    
+    if (modalDragVelocity > MODAL_DRAG_VELOCITY_THRESHOLD) {
+      closeImageModal();
+    } else if (modalDragY > 0) {
+      // Animate back to center
+      const startY = modalDragY;
+      const startTime = performance.now();
+      const duration = 300;
+      
+      const animate = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Spring-like easing
+        const easedProgress = 1 - Math.pow(1 - progress, 2);
+        const newY = startY * (1 - easedProgress);
+        
+        setModalDragY(newY);
+        
+        if (progress < 1) {
+          modalAnimFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          setModalDragY(0);
+          modalAnimFrameRef.current = null;
+        }
+      };
+      
+      modalAnimFrameRef.current = requestAnimationFrame(animate);
+    }
+    
+    // Reset state
+    setIsModalDragging(false);
+    modalTouchStartRef.current = null;
+    lastModalTouchRef.current = null;
+    
+    // Clean up document listeners
+    document.removeEventListener('mousemove', onModalMouseMove);
+    document.removeEventListener('mouseup', onModalMouseUp);
+  };
+
+  // Cleanup function for modal animations
+  useEffect(() => {
+    return () => {
+      if (modalAnimFrameRef.current) {
+        cancelAnimationFrame(modalAnimFrameRef.current);
+      }
+      document.removeEventListener('mousemove', onModalMouseMove);
+      document.removeEventListener('mouseup', onModalMouseUp);
+    };
+  }, []);
+
+  // Render the ImageCard with clickable behavior
+  const renderImageCard = (index: number, style: React.CSSProperties) => {
+    return (
+      <div 
+        key={images[index].id}
+        style={style}
+        className="transition-transform duration-200 ease-out"
+        onClick={() => openImageModal(images[index])}
+      >
+        <ImageCard 
+          key={images[index].id}
+          image={images[index]}
+          index={index}
+          activeIndex={currentIndex}
+          totalImages={images.length}
+          isPreloaded={preloadedSrc === images[index].src}
+        />
+      </div>
+    );
+  };
+
   if (showGrid) {
     return <ImageGrid images={images} onClose={() => setShowGrid(false)} />;
   }
@@ -611,8 +822,8 @@ const ImageGallery: React.FC = () => {
             {visibleImageIndices.map(index => {
               const isActive = index === currentIndex;
               const isAdjacent = Math.abs(index - currentIndex) === 1 ||
-                                 (currentIndex === 0 && index === images.length - 1) ||
-                                 (currentIndex === images.length - 1 && index === 0);
+                                (currentIndex === 0 && index === images.length - 1) ||
+                                (currentIndex === images.length - 1 && index === 0);
               
               // Higher z-index for active and adjacent cards
               const zIndex = isActive ? 30 : (isAdjacent ? 25 : 10);
@@ -634,7 +845,8 @@ const ImageGallery: React.FC = () => {
                 zIndex,
                 // More dramatic opacity change for next card
                 opacity: isActive ? 1 : (shouldShowAdjacent ? 
-                          0.6 + (swipeProgress * 0.4) : (isAdjacent ? 0.5 : 0.3))
+                          0.6 + (swipeProgress * 0.4) : (isAdjacent ? 0.5 : 0.3)),
+                cursor: 'pointer' // Add pointer cursor
               };
               
               // Apply transforms based on card state
@@ -650,29 +862,13 @@ const ImageGallery: React.FC = () => {
                 }
               }
               
-              return (
-                <div 
-                  key={images[index].id}
-                  style={cardStyle}
-                  className="transition-transform duration-200 ease-out"
-                >
-                  <ImageCard 
-                    key={images[index].id}
-                    image={images[index]}
-                    index={index}
-                    activeIndex={currentIndex}
-                    totalImages={images.length}
-                    isPreloaded={preloadedSrc === images[index].src}
-                  />
-                </div>
-              );
+              return renderImageCard(index, cardStyle);
             })}
           </div>
         </div>
         
         {/* Fixed bottom navigation bar */}
         <div className="fixed bottom-6 left-0 right-0 flex flex-col items-center gap-4 z-40">
-          {/* Control buttons moved above indicators */}
           <div className="flex justify-center gap-4">
             <button 
               onClick={randomImage}
@@ -701,7 +897,6 @@ const ImageGallery: React.FC = () => {
             </button>
           </div>
           
-          {/* Enhanced image indicators moved below buttons */}
           <div className="flex space-x-2 md:space-x-3 overflow-hidden px-4 py-2 bg-black/40 backdrop-blur-sm rounded-full">
             {visibleIndicators.map(index => (
               <button
@@ -718,6 +913,60 @@ const ImageGallery: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Image Modal */}
+      <AnimatePresence>
+        {showModal && modalImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
+            onClick={closeImageModal}
+          >
+            {/* Blurred backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-12px" />
+            
+            {/* Modal content */}
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ 
+                scale: 1, 
+                y: modalDragY,
+                opacity: modalDragY > 0 ? Math.max(1 - (modalDragY / 400), 0.3) : 1
+              }}
+              exit={{ scale: 0.9, y: 100, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative z-10 max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[60%] max-h-[90vh] overflow-hidden rounded-xl"
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={onModalTouchStart}
+              onTouchMove={onModalTouchMove}
+              onTouchEnd={onModalTouchEnd}
+              onMouseDown={onModalMouseDown}
+            >
+              {/* Close button */}
+              <button
+                className="absolute top-2 right-2 z-50 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 focus:bg-black/70 transition-all duration-200"
+                onClick={closeImageModal}
+                aria-label="Close image"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              
+              {/* Image */}
+              <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none">
+                <img
+                  src={modalImage.src}
+                  alt={modalImage.title}
+                  className="object-contain max-h-[90vh] w-auto"
+                  draggable={false}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
