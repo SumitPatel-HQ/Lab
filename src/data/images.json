@@ -1324,7 +1324,7 @@
       "id": "220",
       "title": "Image 2-168",
       "src": "/public/2 (168).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "221",
@@ -1348,13 +1348,13 @@
       "id": "224",
       "title": "Image 2-175",
       "src": "/public/2 (175).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "225",
       "title": "Image 2-176",
       "src": "/public/2 (176).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "226",
@@ -1462,7 +1462,7 @@
       "id": "243",
       "title": "Image 2-221",
       "src": "/public/2 (221).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "244",
@@ -1606,7 +1606,7 @@
       "id": "267",
       "title": "Image 2-32",
       "src": "/public/2 (32).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "268",
@@ -1660,19 +1660,19 @@
       "id": "276",
       "title": "Image 2-42",
       "src": "/public/2 (42).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "277",
       "title": "Image 2-43",
       "src": "/public/2 (43).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "278",
       "title": "Image 2-44",
       "src": "/public/2 (44).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "279",
@@ -1768,7 +1768,7 @@
       "id": "294",
       "title": "Image 2-60",
       "src": "/public/2 (60).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "295",
@@ -1864,7 +1864,7 @@
       "id": "310",
       "title": "Image 2-76",
       "src": "/public/2 (76).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "311",
@@ -2002,7 +2002,7 @@
       "id": "333",
       "title": "Image 2-99",
       "src": "/public/2 (99).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "334",
@@ -2398,7 +2398,7 @@
       "id": "399",
       "title": "Image 7-19",
       "src": "/public/7 (19).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "400",
@@ -2422,13 +2422,13 @@
       "id": "403",
       "title": "Image 7-22",
       "src": "/public/7 (22).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "404",
       "title": "Image 7-23",
       "src": "/public/7 (23).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "405",
@@ -2644,7 +2644,7 @@
       "id": "440",
       "title": "Image 7-58",
       "src": "/public/7 (58).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "441",
@@ -2806,7 +2806,7 @@
       "id": "486",
       "title": "Image 8-2",
       "src": "/public/8 (2).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "487",
@@ -2836,13 +2836,13 @@
       "id": "491",
       "title": "Image 8-7",
       "src": "/public/8 (7).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "492",
       "title": "Image 8-8",
       "src": "/public/8 (8).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "493",
@@ -2926,7 +2926,7 @@
       "id": "506",
       "title": "Image 9-21",
       "src": "/public/9 (21).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     
     {
@@ -3113,13 +3113,13 @@
       "id": "538",
       "title": "Image 9-50",
       "src": "/public/9 (50).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2 "
     },
     {
       "id": "539",
       "title": "Image 9-51",
       "src": "/public/9 (51).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "540",
@@ -3179,7 +3179,7 @@
       "id": "549",
       "title": "Image 9-63",
       "src": "/public/9 (63).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "550",
@@ -3203,7 +3203,7 @@
       "id": "553",
       "title": "Image 9-7",
       "src": "/public/9 (7).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "554",
@@ -3221,31 +3221,31 @@
       "id": "556",
       "title": "Image 8-10",
       "src": "/public/8 (10).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "557",
       "title": "Image 8-11",
       "src": "/public/8 (11).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "558",
       "title": "Image 8-12",
       "src": "/public/8 (12).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "559",
       "title": "Image 8-13",
       "src": "/public/8 (13).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "560",
       "title": "Image 8-14",
       "src": "/public/8 (14).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "561",
@@ -3257,13 +3257,13 @@
       "id": "562",
       "title": "Image 8-16",
       "src": "/public/8 (16).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "563",
       "title": "Image 8-17",
       "src": "/public/8 (17).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "564",
@@ -3305,7 +3305,7 @@
       "id": "570",
       "title": "Image 8-24",
       "src": "/public/8 (24).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "571",
@@ -3347,7 +3347,7 @@
       "id": "577",
       "title": "Image 8-2-PNG",
       "src": "/public/8 (2).png",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "578",
@@ -3377,7 +3377,7 @@
       "id": "582",
       "title": "Image 8-34",
       "src": "/public/8 (34).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "583",
@@ -3401,7 +3401,7 @@
       "id": "586",
       "title": "Image 8-38",
       "src": "/public/8 (38).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "587",
@@ -3437,7 +3437,7 @@
       "id": "592",
       "title": "Image 8-44",
       "src": "/public/8 (44).jpg",
-      "ratio": "2:3"
+      "ratio": "3:2"
     },
     {
       "id": "593",

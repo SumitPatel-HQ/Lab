@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Image } from '../services/imageService';
+import { preloadImage } from '../services/imageService';
 
 // Enhanced configuration for hover effects
 const HOVER_CONFIG = {
@@ -19,7 +20,34 @@ interface ImageModalProps {
   totalImages?: number;
   currentIndex?: number;
   enableTilt?: boolean; // Add new prop for tilt effect
+  // Add props for adjacent images to preload
+  prevImage?: Image | null;
+  nextImage?: Image | null;
 }
+
+// Helper function to generate low-quality placeholder URL
+const getPlaceholderUrl = (src: string): string => {
+  // If src includes query parameters, add the placeholder params
+  if (src.includes('?')) {
+    return `${src}&w=20&q=10&blur=10`;
+  } else {
+    return `${src}?w=20&q=10&blur=10`;
+  }
+};
+
+// Helper function to generate responsive image URLs
+const getResponsiveSrcSet = (src: string): string => {
+  // Extract base URL without query parameters
+  const baseUrl = src.split('?')[0];
+  
+  // Return responsive srcSet
+  return `
+    ${baseUrl}?w=640&q=75 640w,
+    ${baseUrl}?w=960&q=75 960w,
+    ${baseUrl}?w=1280&q=80 1280w,
+    ${baseUrl}?w=1920&q=80 1920w
+  `.trim();
+};
 
 const SWIPE_THRESHOLD = 80; // Minimum distance in pixels to trigger a swipe
 const SWIPE_RESISTANCE = 0.4; // Resistance factor for more natural swipe feeling
@@ -38,7 +66,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
   onNext,
   totalImages = 1,
   currentIndex = 0,
-  enableTilt = true // Default to enabled
+  enableTilt = true, // Default to enabled
+  prevImage = null,
+  nextImage = null
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -61,6 +91,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [tiltX, setTiltX] = useState(0);
   const [tiltY, setTiltY] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
+
+  // Add placeholder state
+  const [placeholderLoaded, setPlaceholderLoaded] = useState(false);
   
   const modalRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -71,6 +104,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const lastTouchTimeRef = useRef<number | null>(null);
   const lastTouchYRef = useRef<number | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Reset state when image changes
   useEffect(() => {
@@ -87,6 +121,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     setTiltX(0);
     setTiltY(0);
     setIsHovering(false);
+    setPlaceholderLoaded(false);
     
     // Cancel any pending animation frames
     if (animationFrameIdRef.current) {
@@ -102,6 +137,31 @@ const ImageModal: React.FC<ImageModalProps> = ({
     
     return () => clearTimeout(timer);
   }, [image]);
+
+  // Preload adjacent images for faster navigation
+  useEffect(() => {
+    if (!image) return;
+    
+    // Preload next and previous images in background for faster navigation
+    const preloadAdjacentImages = async () => {
+      // Use requestIdleCallback (or fallback to setTimeout) to preload during idle time
+      const requestIdleCallbackPolyfill = 
+        window.requestIdleCallback || 
+        ((callback) => setTimeout(callback, 1));
+      
+      requestIdleCallbackPolyfill(() => {
+        if (nextImage && nextImage.src) {
+          preloadImage(nextImage.src);
+        }
+        
+        if (prevImage && prevImage.src) {
+          preloadImage(prevImage.src);
+        }
+      });
+    };
+    
+    preloadAdjacentImages();
+  }, [image, nextImage, prevImage]);
 
   // Close modal when escape key is pressed
   useEffect(() => {
@@ -128,7 +188,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
   // Handle background click to close modal
   const handleBackgroundClick = (e: React.MouseEvent) => {
-    if (e.target === modalRef.current) {
+    // Only close if clicking directly on the modal backdrop
+    // and not on any of its children
+    if (e.target === e.currentTarget) {
       onClose();
     }
   };
@@ -633,8 +695,22 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 willChange: isHovering || isDraggingVertical || isSwiping ? 'transform, box-shadow' : 'auto'
               }}
             >
-              {/* Image loading indicator */}
-              {!loaded && !error && (
+              {/* LQIP (Low Quality Image Placeholder) */}
+              {!loaded && image.src && (
+                <img
+                  src={getPlaceholderUrl(image.src)}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-contain blur-sm opacity-60 transition-opacity duration-300"
+                  onLoad={() => setPlaceholderLoaded(true)}
+                  style={{
+                    opacity: loaded ? 0 : (placeholderLoaded ? 0.6 : 0)
+                  }}
+                />
+              )}
+
+              {/* Image loading indicator - display until LQIP loads */}
+              {!loaded && !placeholderLoaded && !error && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
                 </div>
@@ -650,17 +726,32 @@ const ImageModal: React.FC<ImageModalProps> = ({
               )}
               
               {/* Image */}
-              <img
-                ref={imageRef}
-                src={image.src}
-                alt={image.title || "Image"}
-                className={`max-w-full max-h-[90vh] object-contain transition-opacity duration-300 ${
-                  loaded ? 'opacity-100' : 'opacity-0'
-                } ${isAnimating ? 'animate-fade-in' : ''}`}
-                draggable={false}
-                onLoad={() => setLoaded(true)}
-                onError={() => setError(true)}
-              />
+              {image.src && (
+                <img
+                  ref={imageRef}
+                  src={image.src}
+                  srcSet={getResponsiveSrcSet(image.src)}
+                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 80vw, (max-width: 1280px) 70vw, 60vw"
+                  alt={image.title || "Image"}
+                  className={`max-w-full max-h-[90vh] object-contain transition-opacity duration-300 ${
+                    loaded ? 'opacity-100' : 'opacity-0'
+                  } ${isAnimating ? 'animate-fade-in' : ''}`}
+                  loading="eager" 
+                  fetchPriority="high"
+                  decoding="async"
+                  draggable={false}
+                  onLoad={() => setLoaded(true)}
+                  onError={() => setError(true)}
+                />
+              )}
+
+              {/* Invisible preload images for next/previous images */}
+              {prevImage && prevImage.src && (
+                <link rel="preload" as="image" href={prevImage.src} />
+              )}
+              {nextImage && nextImage.src && (
+                <link rel="preload" as="image" href={nextImage.src} />
+              )}
             </div>
           )}
           

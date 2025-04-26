@@ -9,20 +9,52 @@ interface ImageCardProps {
   isPreloaded?: boolean;
 }
 
+// Helper function to generate responsive image URLs
+const getResponsiveSrcSet = (src: string): string => {
+  // Extract base URL without query parameters
+  const baseUrl = src.split('?')[0];
+  
+  // Return responsive srcSet
+  return `
+    ${baseUrl}?w=400&q=70 400w,
+    ${baseUrl}?w=800&q=75 800w,
+    ${baseUrl}?w=1200&q=80 1200w
+  `.trim();
+};
+
+// Helper function to generate low-quality placeholder URL
+const getPlaceholderUrl = (src: string): string => {
+  // If src includes query parameters, add the placeholder params
+  if (src.includes('?')) {
+    return `${src}&w=20&q=10&blur=5`;
+  } else {
+    return `${src}?w=20&q=10&blur=5`;
+  }
+};
+
 const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalImages, isPreloaded = false }) => {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [placeholderLoaded, setPlaceholderLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   
   // Improved visibility logic to preload more images
   const isVisible = Math.abs(index - activeIndex) <= 3 || 
                    (activeIndex < 3 && index > totalImages - 4) ||
                    (activeIndex > totalImages - 4 && index < 3);
+  
+  // Determine loading priority based on how close to active index
+  const getLoadingPriority = (): "high" | "low" | "auto" => {
+    if (index === activeIndex) return "high";
+    if (Math.abs(index - activeIndex) <= 1) return "auto";
+    return "low";
+  };
 
   useEffect(() => {
     // Reset loaded state when image changes
     setLoaded(false);
     setError(false);
+    setPlaceholderLoaded(false);
     
     if (!isVisible) return;
     
@@ -113,7 +145,8 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
 
   return (
     <div 
-      className="absolute top-1/2 left-1/2 w-[80vw] md:w-[65vw] lg:w-[55vw] xl:w-[45vw] max-w-sm transition-all duration-500 ease-in-out will-change-transform"
+    //used to chanege the position & size of the image card
+      className="absolute top-1/2 left-1/2 w-[80vw] md:w-[65vw] lg:w-[55vw] xl:w-[30vw] max-w-l transition-all duration-500 ease-in-out will-change-transform"
       style={{
         zIndex: style.zIndex,
         opacity: style.opacity,
@@ -124,11 +157,24 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
       }}
     >
       <div className="relative overflow-hidden rounded-2xl shadow-lg transform-gpu">
-        {!loaded && (
+        {/* Low-quality image placeholder */}
+        {!loaded && !error && (
+          <img
+            src={getPlaceholderUrl(image.src)}
+            alt=""
+            aria-hidden="true"
+            className={`absolute inset-0 w-full h-full object-cover blur-sm transition-opacity duration-500 ${placeholderLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setPlaceholderLoaded(true)}
+          />
+        )}
+        
+        {/* Loading spinner - only show if placeholder hasn't loaded */}
+        {!loaded && !placeholderLoaded && (
           <div className={`${getAspectRatioClass()} bg-gray-200 animate-pulse flex items-center justify-center`}>
             <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
+        
         {error ? (
           <div className={`${getAspectRatioClass()} bg-gray-800 flex flex-col items-center justify-center p-4`}>
             <div className="text-red-400 mb-2">⚠️</div>
@@ -137,9 +183,15 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, index, activeIndex, totalI
         ) : (
           <img 
             ref={imgRef}
-            src={image.src} 
+            src={image.src}
+            srcSet={getResponsiveSrcSet(image.src)}
+            sizes="(max-width: 640px) 80vw, (max-width: 1024px) 65vw, (max-width: 1280px) 55vw, 45vw"
             alt={image.title}
-            loading="lazy"
+            loading={index === activeIndex ? "eager" : "lazy"}
+            fetchPriority={getLoadingPriority()}
+            decoding="async"
+            onLoad={() => setLoaded(true)}
+            onError={() => setError(true)}
             className={`${getAspectRatioClass()} w-full object-cover ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity`}
             style={{ 
               willChange: 'opacity',

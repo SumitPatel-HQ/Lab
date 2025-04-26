@@ -3,6 +3,7 @@ import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Shuffle, Library, X } from 'lucide-react';
 import ImageCard from './ImageCard';
 import ImageGrid from './ImageGrid';
+import ImageModal from './ImageModal';
 import { getAllImages, type Image as ImageType } from '../services/imageService';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -246,8 +247,18 @@ const ImageGallery: React.FC = () => {
   };
 
   const nextImage = () => {
-    if (isTransitioning) return; // Prevent rapid clicking
-    setCurrentIndex(prev => (prev === images.length - 1 ? 0 : prev + 1));
+    setCurrentIndex(prevIndex => (prevIndex + 1) % images.length);
+  };
+
+  // Functions to get adjacent images for preloading
+  const getNextImage = (): ImageType | null => {
+    const nextIndex = (currentIndex + 1) % images.length;
+    return images[nextIndex] || null;
+  };
+  
+  const getPrevImage = (): ImageType | null => {
+    const prevIndex = (currentIndex - 1 + images.length) % images.length;
+    return images[prevIndex] || null;
   };
 
   // Improved random image function
@@ -258,76 +269,80 @@ const ImageGallery: React.FC = () => {
     // Set loading state to show spinner
     setShuffleLoading(true);
     
-    // Find a new random index
+    // Find a new random index (avoiding current index if possible)
     let newIndex;
-    do {
-      newIndex = Math.floor(Math.random() * images.length);
-    } while (newIndex === currentIndex && images.length > 1);
-    
-    // Mobile-specific optimizations to reduce lag
-    if (isMobile) {
-      // Simpler and faster approach for mobile: directly change the index
-      // without complex preloading and animations
-      setCurrentIndex(newIndex);
-      
-      // Brief delay before clearing loading state for UX
-      setTimeout(() => {
-        setShuffleLoading(false);
-        setIsTransitioning(false);
-      }, 100);
-      return;
+    if (images.length > 1) {
+      // For multiple images, ensure we don't get the same image
+      const possibleIndices = [...Array(images.length).keys()].filter(i => i !== currentIndex);
+      newIndex = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
+    } else {
+      // Edge case: only one image in gallery
+      newIndex = 0;
     }
     
-    // Desktop experience with preloading
-    // Store the new image source
+    // Store the new image source for preloading
     const newImageSrc = images[newIndex].src;
     
-    // Clear any existing preloaded image
-    setPreloadedSrc(null);
+    // Use requestIdleCallback for preloading when browser is idle (with fallback)
+    const preloadWithIdleCallback = (callback: () => void) => {
+      if ('requestIdleCallback' in window) {
+        // @ts-ignore (TypeScript might not recognize requestIdleCallback)
+        window.requestIdleCallback(callback, { timeout: 500 });
+      } else {
+        // Fallback for browsers without requestIdleCallback
+        setTimeout(callback, 1);
+      }
+    };
     
-    // Force the browser to load the image before proceeding
-    const imgLoader = new Image();
-    
-    // After the image is loaded, update the state
-    imgLoader.onload = () => {
-      // Mark that the image is preloaded and store its source
-      setPreloadedSrc(newImageSrc);
+    // Create single function for handling state updates
+    const updateState = () => {
+      // Batch all state updates together
+      setIsTransitioning(true);
+      setCurrentIndex(newIndex);
       
-      // Update visible indices for adjacent images
-      const adjacentIndices = [
+      // Update preload info
+      setPreloadedSrc(newImageSrc);
+      setVisibleImageIndices([
         newIndex,
         (newIndex + 1) % images.length,
         (newIndex - 1 + images.length) % images.length
-      ];
-      setVisibleImageIndices(adjacentIndices);
+      ]);
       
-      // Update with requestAnimationFrame for smoother transitions
-      requestAnimationFrame(() => {
-        // Start the transition animation 
-        setIsTransitioning(true);
-        
-        // Wait again to ensure the animation is applied
-        requestAnimationFrame(() => {
-          // Update the current index to show the new image
-          setCurrentIndex(newIndex);
-          
-          // Clear the loading state
-          setShuffleLoading(false);
-        });
-      });
+      // Reset loading state after brief delay
+      setTimeout(() => {
+        setShuffleLoading(false);
+      }, 100);
     };
     
-    // If image fails to load, still try to show it
-    imgLoader.onerror = () => {
-      console.warn('Failed to preload image, attempting to show anyway');
-      
-      setIsTransitioning(true);
-      setCurrentIndex(newIndex); 
-      setShuffleLoading(false);
+    // Start loading image in background, but don't wait for it to complete
+    const imgLoader = new Image();
+    
+    // Move forward with animation after brief timeout or when loaded
+    let hasUpdated = false;
+    
+    const onImageLoaded = () => {
+      if (!hasUpdated) {
+        hasUpdated = true;
+        updateState();
+      }
     };
     
-    // Start loading the image
-    imgLoader.src = newImageSrc;
+    // Set fallback timer to ensure UI updates even if image is slow to load
+    const fallbackTimer = setTimeout(() => {
+      if (!hasUpdated) {
+        hasUpdated = true;
+        updateState();
+      }
+    }, isMobile ? 50 : 100); // Shorter fallback on mobile for better responsiveness
+    
+    // Set up image loading
+    imgLoader.onload = onImageLoaded;
+    imgLoader.onerror = onImageLoaded; // Still update even if image fails to load
+    
+    // Start preloading the image when browser is idle
+    preloadWithIdleCallback(() => {
+      imgLoader.src = newImageSrc;
+    });
   };
 
   // Lightning-fast touch handling
@@ -524,10 +539,23 @@ const ImageGallery: React.FC = () => {
       
       switch (e.key) {
         case 'ArrowLeft':
-          prevImage();
+          if (showModal) {
+            prevImage();
+          } else {
+            prevImage();
+          }
           break;
         case 'ArrowRight':
-          nextImage();
+          if (showModal) {
+            nextImage();
+          } else {
+            nextImage();
+          }
+          break;
+        case 'Escape':
+          if (showModal) {
+            closeImageModal();
+          }
           break;
         default:
           break;
@@ -536,7 +564,7 @@ const ImageGallery: React.FC = () => {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showGrid, isTransitioning]);
+  }, [showGrid, isTransitioning, showModal]);
 
   // Calculate visible indicators
   const visibleIndicators = React.useMemo(() => {
@@ -959,6 +987,17 @@ const ImageGallery: React.FC = () => {
     );
   };
 
+  // Add click outside handler for modal
+  const modalRef = useRef<HTMLDivElement>(null);
+  
+  const handleModalBackdropClick = (e: React.MouseEvent) => {
+    // Only close if clicking directly on the backdrop (the div with the bg-black/80 class)
+    // and not on any of its children
+    if (e.target === e.currentTarget) {
+      closeImageModal();
+    }
+  };
+
   if (showGrid) {
     return <ImageGrid images={images} onClose={() => setShowGrid(false)} />;
   }
@@ -1101,109 +1140,27 @@ const ImageGallery: React.FC = () => {
 
       {/* Image Modal */}
       <AnimatePresence>
-        {showModal && modalImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
-            onClick={closeImageModal}
+        {showModal && (
+          <div 
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center"
+            onClick={handleModalBackdropClick}
           >
-            {/* Blurred backdrop */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-12px" />
-            
-            {/* Modal content */}
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ 
-                scale: 1, 
-                y: modalDragY,
-                opacity: modalDragY > 0 ? Math.max(1 - (modalDragY / 400), 0.3) : 1
-              }}
-              exit={{ scale: 0.9, y: 100, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative z-10 max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[60%] max-h-[90vh] overflow-hidden rounded-xl"
-              onClick={(e) => e.stopPropagation()}
-              onTouchStart={onModalTouchStart}
-              onTouchMove={onModalTouchMove}
-              onTouchEnd={onModalTouchEnd}
-              onMouseDown={onModalMouseDown}
-            >
-              {/* Close button */}
-              <button
-                className="absolute top-2 right-2 z-50 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 focus:bg-black/70 transition-all duration-200"
-                onClick={closeImageModal}
-                aria-label="Close image"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              
-              {/* Image */}
-              <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none modal-image-container transition-transform duration-300 will-change-transform">
-                <img
-                  src={getOptimizedImageSrc(modalImage.src, isMobile)}
-                  alt={modalImage.title}
-                  className="object-contain max-h-[90vh] w-auto"
-                  draggable={false}
-                />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Add tilt effect to the modal image as well */}
-      {showModal && modalImage && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8"
-          onClick={closeImageModal}
-        >
-          {/* Blurred backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-12px" />
-          
-          {/* Modal content */}
-          <motion.div
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ 
-              scale: 1, 
-              y: modalDragY,
-              opacity: modalDragY > 0 ? Math.max(1 - (modalDragY / 400), 0.3) : 1
-            }}
-            exit={{ scale: 0.9, y: 100, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="relative z-10 max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[60%] max-h-[90vh] overflow-hidden rounded-xl"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={onModalTouchStart}
-            onTouchMove={onModalTouchMove}
-            onTouchEnd={onModalTouchEnd}
-            onMouseDown={onModalMouseDown}
-          >
-            {/* Close button */}
-            <button
-              className="absolute top-2 right-2 z-50 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 focus:bg-black/70 transition-all duration-200"
-              onClick={closeImageModal}
-              aria-label="Close image"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            
-            {/* Image */}
-            <div className="relative shadow-3xl rounded-3xl overflow-hidden bg-black select-none modal-image-container transition-transform duration-300 will-change-transform">
-              <img
-                src={getOptimizedImageSrc(modalImage.src, isMobile)}
-                alt={modalImage.title}
-                className="object-contain max-h-[90vh] w-auto"
-                draggable={false}
+            <div ref={modalRef}>
+              <ImageModal
+                image={images[currentIndex]}
+                onClose={closeImageModal}
+                onNext={nextImage}
+                onPrev={prevImage}
+                totalImages={images.length}
+                currentIndex={currentIndex}
+                enableTilt={!isMobile}
+                prevImage={getPrevImage()}
+                nextImage={getNextImage()}
               />
             </div>
-          </motion.div>
-        </motion.div>
-      )}
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

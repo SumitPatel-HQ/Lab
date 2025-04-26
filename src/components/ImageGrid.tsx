@@ -50,10 +50,45 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const [newBatchLoaded, setNewBatchLoaded] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const observedElements = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Add ref to track processed image IDs to avoid duplicate processing
+  const processedImageIds = useRef<Set<string>>(new Set());
 
   // Add new states for tilt effect
   const [isMobile, setIsMobile] = useState(false);
   const [tiltStates, setTiltStates] = useState<Record<string, TiltState>>({});
+  
+  // CSS for space-columns class to improve column distribution
+  const spaceColumnsStyle = `
+    .space-columns {
+      column-fill: balance;
+    }
+    .space-columns > div {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      -webkit-column-break-inside: avoid;
+      display: inline-block;
+      width: 100%;
+      margin-bottom: 16px; /* Add consistent spacing */
+    }
+    
+    /* Ensure images maintain aspect ratio during loading */
+    .space-columns img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    
+    /* Help distribute content more evenly */
+    @media (min-width: 640px) {
+      .space-columns[data-density="1"] > div:nth-child(2n+1),
+      .space-columns[data-density="2"] > div:nth-child(3n+1),
+      .space-columns[data-density="3"] > div:nth-child(4n+1),
+      .space-columns[data-density="4"] > div:nth-child(5n+1),
+      .space-columns[data-density="5"] > div:nth-child(6n+1) {
+        clear: left;
+      }
+    }
+  `;
   
   // Check if device is mobile on mount
   useEffect(() => {
@@ -159,42 +194,107 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     setIsLoading(true);
     setNewBatchLoaded(true);
     
-    // Show loading indicator for a brief moment
-    requestAnimationFrame(() => {
-      // Calculate remaining images
-      const remainingImages = images.slice(visibleImages.length);
+    // Calculate remaining images
+    const remainingImages = images.slice(visibleImages.length);
+    const totalRemaining = remainingImages.length;
+    
+    if (totalRemaining === 0) {
+      setIsLoading(false);
+      setNewBatchLoaded(false);
+      return;
+    }
+    
+    // Use a more progressive loading strategy that preserves layout better
+    const progressiveLoad = () => {
+      // Define optimal batch size based on screen width and grid density
+      const columnsCount = Math.min(5, Math.max(1, gridDensity));
+      // Load approximately 2-4 rows at a time, depending on device capability
+      const optimalBatchSize = isMobile ? columnsCount * 2 : columnsCount * 4;
       
-      // Small delay to prepare for animation
-      setTimeout(() => {
-        // Load in smaller batches to prevent browser from freezing on mobile
-        if (isMobile && remainingImages.length > 100) {
-          // Load first batch immediately
-          const firstBatch = remainingImages.slice(0, 50);
-          setVisibleImages(prev => [...prev, ...firstBatch]);
-          
-          // Then load the rest with a small delay to allow rendering to happen
-          setTimeout(() => {
-            setVisibleImages(prev => [...prev, ...remainingImages.slice(50)]);
-            setIsLoading(false);
+      // Distribute images more evenly across columns
+      const distributeImagesAcrossColumns = (imagesToDistribute: Image[]) => {
+        // Create a balanced set of images for each column
+        const distributedImages = [...imagesToDistribute];
+        
+        // Sort images to ensure they're evenly distributed
+        distributedImages.sort((a, b) => {
+          const colA = getOptimalColumnIndex(a.id, columnsCount);
+          const colB = getOptimalColumnIndex(b.id, columnsCount);
+          return colA - colB;
+        });
+        
+        return distributedImages;
+      };
+      
+      let loadedCount = 0;
+      let currentBatchSize = Math.min(optimalBatchSize, totalRemaining);
+      
+      // Load first batch immediately
+      requestAnimationFrame(() => {
+        const rawFirstBatch = remainingImages.slice(0, currentBatchSize);
+        const firstBatch = distributeImagesAcrossColumns(rawFirstBatch);
+        loadedCount += firstBatch.length;
+        
+        // Update state with first batch
+        setVisibleImages(prev => [...prev, ...firstBatch]);
+        
+        // If more images to load, schedule next batch
+        if (loadedCount < totalRemaining) {
+          // Use requestIdleCallback (or fallback) to load during browser idle time
+          const requestIdleCallbackPolyfill = 
+            (window as any).requestIdleCallback || 
+            ((callback: Function) => setTimeout(callback, 100));
             
-            // Reset the new batch loaded flag after animation completes
-            setTimeout(() => {
-              setNewBatchLoaded(false);
-            }, 1000);
-          }, 300);
-        } else {
-          // On desktop or with fewer images, load all at once
-          setVisibleImages(prev => [...prev, ...remainingImages]);
-          setIsLoading(false);
+          const loadNextBatch = () => {
+            const nextBatchSize = Math.min(optimalBatchSize, totalRemaining - loadedCount);
+            if (nextBatchSize <= 0) {
+              // All done
+              setIsLoading(false);
+              // Reset the new batch loaded flag after animation completes
+              setTimeout(() => {
+                setNewBatchLoaded(false);
+              }, 1000);
+              return;
+            }
+            
+            const rawNextBatch = remainingImages.slice(loadedCount, loadedCount + nextBatchSize);
+            const nextBatch = distributeImagesAcrossColumns(rawNextBatch);
+            loadedCount += nextBatch.length;
+            
+            // Update with next batch
+            setVisibleImages(prev => [...prev, ...nextBatch]);
+            
+            // Continue loading next batch if needed
+            if (loadedCount < totalRemaining) {
+              requestIdleCallbackPolyfill(loadNextBatch);
+            } else {
+              // All done
+              setIsLoading(false);
+              // Reset the new batch loaded flag after animation completes
+              setTimeout(() => {
+                setNewBatchLoaded(false);
+              }, 1000);
+            }
+          };
           
+          // Schedule first additional batch with a short delay to allow rendering
+          setTimeout(() => {
+            requestIdleCallbackPolyfill(loadNextBatch);
+          }, 100);
+        } else {
+          // All done with just the first batch
+          setIsLoading(false);
           // Reset the new batch loaded flag after animation completes
           setTimeout(() => {
             setNewBatchLoaded(false);
           }, 1000);
         }
-      }, 50);
-    });
-  }, [isLoading, visibleImages.length, images, isMobile]);
+      });
+    };
+    
+    // Start progressive loading
+    progressiveLoad();
+  }, [isLoading, visibleImages.length, images, isMobile, gridDensity]);
   
   // Setup intersection observer to detect when load more button is in view
   useEffect(() => {
@@ -285,13 +385,14 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const getGridClass = () => {
     if (layoutMode === 'masonry') {
       // For masonry, use explicit column classes based on density
+      // Add space-columns class to ensure better column distribution
       switch (Math.round(gridDensity)) {
-        case 1: return 'columns-1 sm:columns-2 lg:columns-3';
-        case 2: return 'columns-2 sm:columns-3 lg:columns-4';
-        case 3: return 'columns-3 sm:columns-4 lg:columns-5';
-        case 4: return 'columns-4 sm:columns-5 lg:columns-6';
-        case 5: return 'columns-5 sm:columns-6 lg:columns-7';
-        default: return 'columns-3 sm:columns-4 lg:columns-5';
+        case 1: return 'columns-1 sm:columns-2 lg:columns-3 space-columns';
+        case 2: return 'columns-2 sm:columns-3 lg:columns-4 space-columns';
+        case 3: return 'columns-3 sm:columns-4 lg:columns-5 space-columns';
+        case 4: return 'columns-4 sm:columns-5 lg:columns-6 space-columns';
+        case 5: return 'columns-5 sm:columns-6 lg:columns-7 space-columns';
+        default: return 'columns-3 sm:columns-4 lg:columns-5 space-columns';
       }
     }
     
@@ -371,6 +472,17 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     return newBatchLoaded && index >= visibleImages.length - IMAGES_PER_LOAD;
   };
 
+  // Add a function to determine optimal column distribution
+  const getOptimalColumnIndex = (imageId: string, totalColumns: number) => {
+    // Use a hash function to distribute images evenly across columns
+    // This helps maintain consistent column assignment between renders
+    const hash = imageId.split('').reduce((acc, char) => {
+      return acc + char.charCodeAt(0);
+    }, 0);
+    
+    return hash % totalColumns;
+  };
+
   // Add modal functionality
   const openModal = (image: Image) => {
     setSelectedImage(image);
@@ -380,32 +492,59 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     setSelectedImage(null);
   };
 
-  // Navigation functions for the modal
-  const goToNextImage = useCallback(() => {
+  const goToNextImage = () => {
     if (!selectedImage) return;
-    
     const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
-    if (currentIndex === -1) return;
-    
     const nextIndex = (currentIndex + 1) % visibleImages.length;
     setSelectedImage(visibleImages[nextIndex]);
-  }, [selectedImage, visibleImages]);
+  };
 
-  const goToPrevImage = useCallback(() => {
+  const goToPrevImage = () => {
     if (!selectedImage) return;
-    
     const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
-    if (currentIndex === -1) return;
-    
     const prevIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
     setSelectedImage(visibleImages[prevIndex]);
-  }, [selectedImage, visibleImages]);
+  };
 
-  // Handle reference for lazy loading
+  // Functions to get adjacent images for preloading
+  const getNextImage = (currentImage: Image): Image | null => {
+    const currentIndex = visibleImages.findIndex(img => img.id === currentImage.id);
+    const nextIndex = (currentIndex + 1) % visibleImages.length;
+    return visibleImages[nextIndex] || null;
+  };
+
+  const getPrevImage = (currentImage: Image): Image | null => {
+    const currentIndex = visibleImages.findIndex(img => img.id === currentImage.id);
+    const prevIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
+    return visibleImages[prevIndex] || null;
+  };
+
+  // Add this effect to reset processedImageIds when layout or density changes
+  useEffect(() => {
+    // Reset processed images when grid density or layout changes
+    // This ensures images are re-observed after layout changes
+    processedImageIds.current.clear();
+    
+    // Force re-observation of all visible images
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.forEach(element => {
+        observerRef.current?.observe(element);
+      });
+    }
+  }, [gridDensity, layoutMode]);
+
+  // Modify setImageRef to always update the reference
   const setImageRef = useCallback((element: HTMLDivElement | null, id: string) => {
     if (element) {
+      // Always update the element reference
       observedElements.current.set(id, element);
-      observerRef.current?.observe(element);
+      
+      // Observe if this element is not being tracked or we're re-observing after layout change
+      if (!processedImageIds.current.has(id) || element !== observedElements.current.get(id)) {
+        observerRef.current?.observe(element);
+        processedImageIds.current.add(id);
+      }
     } else {
       observedElements.current.delete(id);
     }
@@ -504,6 +643,9 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6 overscroll-none">
+      {/* Add style tag for custom CSS */}
+      <style dangerouslySetInnerHTML={{ __html: spaceColumnsStyle }} />
+      
       <div className="max-w-7xl mx-auto">
         {/* header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 px-4 backdrop-blur-md bg-indigo-1/10 rounded-full shadow-2xl">
@@ -586,6 +728,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               ? `grid ${getGridClass()} ${getGridGapClass()}` 
               : getGridClass()
           } w-full will-change-transform`}
+          data-density={gridDensity}
         >
           {visibleImages.map((image, index) => (
             <div
@@ -598,7 +741,11 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               } group relative`}
               style={{
                 animationDelay: `${Math.min(index % IMAGES_PER_LOAD * 50, 1000)}ms`,
+                ...(layoutMode === 'masonry' ? {
+                  order: getOptimalColumnIndex(image.id, Math.max(1, gridDensity))
+                } : {})
               }}
+              data-column={getOptimalColumnIndex(image.id, Math.max(1, gridDensity))}
               onClick={() => openModal(image)}
               onMouseMove={(e) => handleMouseMove(e, image.id)}
               onMouseEnter={() => handleMouseEnter(image.id)}
@@ -610,7 +757,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
               >
                 <div className={`${image.ratio === '2:3' ? 'pb-[150%]' : 'pb-[66.67%]'} bg-gray-800 relative`}>
                   <img 
-                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 opacity-0 hover:opacity-100"
+                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 opacity-0"
                     data-src={image.src}
                     src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" // Tiny placeholder
                     alt={image.title}
@@ -640,7 +787,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
             <button
               onClick={loadMoreImages}
               disabled={isLoading}
-              className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-2"
+              className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-1"
             >
               {isLoading ? (
                 <>
@@ -668,7 +815,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
                 </>
               ) : (
                 <>
-                  <span className="hidden sm:block">See All</span>
+                  <span className="hidden sm:block text-sm">See All</span>
                   <EyeIcon className="w-4 h-4" />
                 </>
               )}
@@ -687,6 +834,8 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
           totalImages={visibleImages.length}
           currentIndex={visibleImages.findIndex(img => img.id === selectedImage.id)}
           enableTilt={!isMobile} // Pass tilt enablement to modal
+          prevImage={getPrevImage(selectedImage)}
+          nextImage={getNextImage(selectedImage)}
         />
       )}
     </div>
