@@ -612,22 +612,28 @@ const ImageModal: React.FC<ImageModalProps> = ({
               />
             </div>
           )}
+          
+          
+          {/* Image title with gradient background */}
+          {image && image.title && (
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent pt-12 pb-4 px-6">
+              <h3 className="text-left text-gray-400 text-lg font-small">{image.title}</h3>
+            </div>
+          )}
+          
+          {/* Swipe direction indicators */}
+          {swipeDirection === 'left' && (
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70">
+              <ChevronLeft className="w-12 h-12" />
+            </div>
+          )}
+          
+          {swipeDirection === 'right' && (
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/70">
+              <ChevronRight className="w-12 h-12" />
+            </div>
+          )}
         </div>
-        
-        
-        
-        {/* Swipe direction indicators */}
-        {swipeDirection === 'left' && (
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70">
-            <ChevronLeft className="w-12 h-12" />
-          </div>
-        )}
-        
-        {swipeDirection === 'right' && (
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/70">
-            <ChevronRight className="w-12 h-12" />
-          </div>
-        )}
       </div>
     </div>
   );
