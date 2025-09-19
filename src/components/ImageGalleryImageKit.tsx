@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Shuffle, Library } from 'lucide-react';
 import { Image as IKImage } from '@imagekit/react';
 import ImageGrid from './ImageGrid';
 import ImageModal from './ImageModal';
-import { getAllImages, getInitialImages, type ImageKitImage as ImageType, IMAGEKIT_URL_ENDPOINT } from '../services/imageKitService';
+import { getAllImages, getAllImagesWithRangeDetection, getEstimatedImageCount, getInitialImages, type ImageKitImage as ImageType, IMAGEKIT_URL_ENDPOINT } from '../services/imageKitService';
 import { AnimatePresence } from 'framer-motion';
 
 // Add isMobile detection utility
@@ -256,7 +256,7 @@ const ImageGalleryImageKit: React.FC = () => {
       // Load even more after user has time to interact
       setTimeout(async () => {
         try {
-          const batch3 = await getAllImages(35);
+          const batch3 = await getAllImages(1000); // Increased from 200 to 1000
           if (batch3.length > 15) {
             setImages(batch3);
             console.log(`Further expanded to ${batch3.length} total images`);
@@ -291,6 +291,30 @@ const ImageGalleryImageKit: React.FC = () => {
   const openGrid = () => {
     setShowGrid(true);
     // No need to load all images at once - ImageGrid will handle lazy loading
+  };
+
+  // Load all images using smart range detection
+  const loadAllImagesWithSmartDetection = async () => {
+    if (loading) return;
+    
+    try {
+      setLoading(true);
+      console.log('🚀 Starting smart image detection...');
+      
+      // First get a quick estimate
+      const estimate = await getEstimatedImageCount();
+      console.log(`📊 Quick estimate: ~${estimate} images`);
+      
+      // Then do full detection
+      const allImages = await getAllImagesWithRangeDetection();
+      setImages(allImages);
+      
+      console.log(`✅ Loaded ${allImages.length} images using smart detection!`);
+    } catch (error) {
+      console.error('Error loading images with smart detection:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Calculate which images should be visible based on current index
@@ -924,6 +948,23 @@ const ImageGalleryImageKit: React.FC = () => {
             >
               <Library className="w-5 h-5" />
               <span className="font-medium">Library</span>
+            </button>
+            
+            <button 
+              onClick={loadAllImagesWithSmartDetection}
+              disabled={loading}
+              className={`flex items-center gap-2 px-4 py-3 rounded-full ${
+                loading 
+                  ? 'bg-black/30 text-gray-400' 
+                  : 'bg-indigo-600/80 hover:bg-indigo-600 text-white'
+              } backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg`}
+              aria-label="Load all images"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <span className="text-sm font-medium">Load All</span>
+              )}
             </button>
           </div>
           

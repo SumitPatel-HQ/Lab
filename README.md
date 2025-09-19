@@ -1,9 +1,12 @@
-next problems 
-initial load take too much time 
-like how images are loaded 
-shuffle function works 
+next problems ⚠️
+front end part
+initial load take too much time  
+shuffle function working
 
 swap load more images with loader animation 
-small ui tweaks  liquid glass
+small ui tweaks to -> liquid glass
 use barba js 
 remove schrol bar
+
+solved problems ✅
+all images load properly✅

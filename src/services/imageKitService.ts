@@ -11,9 +11,171 @@ export interface ImageKitImage {
   height?: number;
 }
 
-// ImageKit configuration
-export const IMAGEKIT_URL_ENDPOINT = "https://ik.imagekit.io/mysgkyyp2c";
-export const IMAGEKIT_PATH_PREFIX = "/AP/";
+// ImageKit f// Get all images with smart range detection
+export const getAllImagesWithRangeDetection = async (): Promise<ImageKitImage[]> => {
+  console.log('🔍 Detecting actual image range...');
+  
+  try {
+    // Find the actual range of images
+    const range = await findImageRange();
+    console.log(`📊 Found image range: ${range.min} to ${range.max} (${range.max} total images)`);
+    
+    // Now load all images in that range efficiently
+    const images: ImageKitImage[] = [];
+    const batchSize = 10;
+    
+    for (let i = range.min; i <= range.max; i += batchSize) {
+      const batch = [];
+      for (let j = 0; j < batchSize && (i + j) <= range.max; j++) {
+        const imageNumber = i + j;
+        const imagePath = getImageKitPath(imageNumber);
+        batch.push({ imageNumber, imagePath });
+      }
+      
+      const results = await Promise.all(
+        batch.map(async ({ imageNumber, imagePath }) => {
+          try {
+            const exists = await Promise.race([
+              testImageExists(imagePath),
+              new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))
+            ]);
+            
+            if (exists) {
+              const metadata = await getImageMetadata(imagePath);
+              return {
+                id: `image-${imageNumber}`,
+                title: imageNumber.toString(),
+                src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-95,f-auto`,
+                ratio: metadata.ratio,
+                category: 'Imaginalab AI',
+                loaded: false
+              };
+            }
+          } catch (error) {
+            console.warn(`Error testing image ${imageNumber}:`, error);
+          }
+          return null;
+        })
+      );
+      
+      results.forEach(result => {
+        if (result) images.push(result);
+      });
+    }
+    
+    console.log(`✅ Successfully loaded ${images.length} out of ${range.max} possible images`);
+    return images;
+    
+  } catch (error) {
+    console.error('Error in smart range detection, falling back to sequential discovery:', error);
+    return discoverAvailableImages(500);
+  }
+};
+
+// Get all images with smart caching (avoid loading all at once)
+export const getAllImages = async (maxCount: number = 2000): Promise<ImageKitImage[]> => {
+  // For large sets, return a reasonable subset
+  return discoverAvailableImages(maxCount);
+};
+
+// Get images from a specific range (if you know the exact range)
+export const getAllImagesInRange = async (startNum: number, endNum: number): Promise<ImageKitImage[]> => {
+  console.log(`🎯 Loading images from ${startNum} to ${endNum}...`);
+  
+  const images: ImageKitImage[] = [];
+  const batchSize = 15; // Increased batch size for better performance
+  
+  for (let i = startNum; i <= endNum; i += batchSize) {
+    const batch = [];
+    for (let j = 0; j < batchSize && (i + j) <= endNum; j++) {
+      const imageNumber = i + j;
+      const imagePath = getImageKitPath(imageNumber);
+      batch.push({ imageNumber, imagePath });
+    }
+    
+    const results = await Promise.all(
+      batch.map(async ({ imageNumber, imagePath }) => {
+        try {
+          const exists = await Promise.race([
+            testImageExists(imagePath),
+            new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1200)) // Slightly longer timeout for large ranges
+          ]);
+          
+          if (exists) {
+            const metadata = await getImageMetadata(imagePath);
+            return {
+              id: `image-${imageNumber}`,
+              title: imageNumber.toString(),
+              src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-95,f-auto`,
+              ratio: metadata.ratio,
+              category: 'Imaginalab AI',
+              loaded: false
+            };
+          }
+        } catch (error) {
+          console.warn(`Error testing image ${imageNumber}:`, error);
+        }
+        return null;
+      })
+    );
+    
+    results.forEach(result => {
+      if (result) images.push(result);
+    });
+    
+    // Progress logging for large ranges
+    if ((i - startNum + batchSize) % 100 === 0 || i + batchSize > endNum) {
+      console.log(`📊 Progress: ${Math.min(i + batchSize - startNum, endNum - startNum + 1)} / ${endNum - startNum + 1} checked, ${images.length} found`);
+    }
+  }
+  
+  console.log(`✅ Loaded ${images.length} images from range ${startNum}-${endNum}`);
+  return images;
+};
+
+// Quick estimation for very large datasets (sample-based)
+export const getEstimatedImageCount = async (): Promise<number> => {
+  console.log('📊 Estimating total image count with sampling...');
+  
+  // Sample every 50th image up to 2000 to get a quick estimate
+  const sampleInterval = 50;
+  let maxFound = 0;
+  let consecutiveGaps = 0;
+  
+  for (let i = sampleInterval; i <= 2000; i += sampleInterval) {
+    const imagePath = getImageKitPath(i);
+    const exists = await Promise.race([
+      testImageExists(imagePath),
+      new Promise<boolean>(resolve => setTimeout(() => resolve(false), 800))
+    ]);
+    
+    if (exists) {
+      maxFound = i;
+      consecutiveGaps = 0;
+      console.log(`✅ Sample found at ${i}`);
+    } else {
+      consecutiveGaps++;
+      if (consecutiveGaps >= 3) { // Stop after 3 consecutive missing samples
+        console.log(`🔍 Stopping sampling at ${i}, last found: ${maxFound}`);
+        break;
+      }
+    }
+  }
+  
+  // Estimate total based on highest sample found
+  const estimate = maxFound + (sampleInterval * 2); // Add buffer
+  console.log(`📈 Estimated ~${estimate} images based on sampling`);
+  return estimate;
+};
+
+// ImageKit configuration - loaded from environment variables
+export const IMAGEKIT_URL_ENDPOINT = import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT || '';
+export const IMAGEKIT_PATH_PREFIX = import.meta.env.VITE_IMAGEKIT_PATH_PREFIX || '/AP/';
+
+// Validate environment variables
+if (!IMAGEKIT_URL_ENDPOINT) {
+  console.error('⚠️  VITE_IMAGEKIT_URL_ENDPOINT is not defined in environment variables');
+}
 
 // Global image cache to persist during page refresh
 const IMAGE_CACHE_KEY = 'imagekit_cache_v1';
@@ -96,11 +258,69 @@ const testImageExists = async (imagePath: string): Promise<boolean> => {
   });
 };
 
-// Optimized discovery for large image sets (500+ images) - ULTRA FAST VERSION
+// Smart discovery using binary search to find actual range
+export const findImageRange = async (): Promise<{min: number, max: number}> => {
+  console.log('🔍 Starting range detection...');
+  
+  // Binary search to find the maximum image number
+  let low = 1;
+  let high = 1000; // Start with reasonable upper bound
+  let maxFound = 0;
+  
+  // First, find a rough upper bound by doubling
+  while (high <= 10000) { // Increased from 2000 to 10000
+    console.log(`🧪 Testing image ${high}...`);
+    const imagePath = getImageKitPath(high);
+    const exists = await Promise.race([
+      testImageExists(imagePath),
+      new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1500))
+    ]);
+    
+    if (exists) {
+      maxFound = high;
+      console.log(`✅ Found image ${high}, expanding search...`);
+      high *= 2; // Double the search range
+    } else {
+      console.log(`❌ Image ${high} not found, starting binary search...`);
+      break;
+    }
+  }
+  
+  // Binary search for exact maximum
+  low = maxFound;
+  high = Math.min(high, 10000); // Increased cap to 10000
+  
+  console.log(`🎯 Binary search between ${low} and ${high}...`);
+  
+  while (low < high) {
+    const mid = Math.floor((low + high + 1) / 2);
+    console.log(`🔍 Testing midpoint: ${mid}`);
+    
+    const imagePath = getImageKitPath(mid);
+    const exists = await Promise.race([
+      testImageExists(imagePath),
+      new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000))
+    ]);
+    
+    if (exists) {
+      low = mid;
+      maxFound = mid;
+      console.log(`✅ Image ${mid} exists, searching higher...`);
+    } else {
+      high = mid - 1;
+      console.log(`❌ Image ${mid} missing, searching lower...`);
+    }
+  }
+  
+  console.log(`🏁 Final range detected: 1 to ${maxFound}`);
+  return { min: 1, max: maxFound };
+};
+
+// Optimized discovery for large image sets (500+ images) - SMART VERSION
 export const discoverAvailableImages = async (limit: number = 10): Promise<ImageKitImage[]> => {
   const images: ImageKitImage[] = [];
   let consecutiveFailures = 0;
-  const maxConsecutiveFailures = 3; // Stop quickly if images don't exist
+  const maxConsecutiveFailures = 20; // Allow more gaps in image sequence
   
   // Very aggressive optimization - test images individually for speed
   for (let i = 1; i <= limit && consecutiveFailures < maxConsecutiveFailures; i++) {
@@ -219,12 +439,6 @@ export const getInitialImages = async (count = 5): Promise<ImageKitImage[]> => {
 // Load images in batches with progressive discovery
 export const getImageBatch = async (startIndex: number, count: number): Promise<ImageKitImage[]> => {
   return discoverImagesProgressively(startIndex, count);
-};
-
-// Get all images with smart caching (avoid loading all 500+ at once)
-export const getAllImages = async (maxCount: number = 100): Promise<ImageKitImage[]> => {
-  // For large sets, return a reasonable subset
-  return discoverAvailableImages(maxCount);
 };
 
 // NEW: Get ALL images for "Show All" functionality (up to 500)
