@@ -1,7 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Image } from '../services/imageService';
-import { preloadImage } from '../services/imageService';
+import type { ImageKitImage as Image } from '../services/imageKitService';
+import { preloadImageKit as preloadImage, IMAGEKIT_URL_ENDPOINT } from '../services/imageKitService';
+
+// Helper function to get full ImageKit URL
+const getImageKitUrl = (src: string): string => {
+  if (src.startsWith('http')) {
+    return src; // Already a full URL
+  }
+  return `${IMAGEKIT_URL_ENDPOINT}${src}`;
+};
 
 // Enhanced configuration for hover effects
 const HOVER_CONFIG = {
@@ -27,18 +35,20 @@ interface ImageModalProps {
 
 // Helper function to generate low-quality placeholder URL
 const getPlaceholderUrl = (src: string): string => {
+  const fullUrl = getImageKitUrl(src);
   // If src includes query parameters, add the placeholder params
-  if (src.includes('?')) {
-    return `${src}&w=20&q=10&blur=10`;
+  if (fullUrl.includes('?')) {
+    return `${fullUrl}&w=20&q=10&blur=10`;
   } else {
-    return `${src}?w=20&q=10&blur=10`;
+    return `${fullUrl}?w=20&q=10&blur=10`;
   }
 };
 
 // Helper function to generate responsive image URLs
 const getResponsiveSrcSet = (src: string): string => {
   // Extract base URL without query parameters
-  const baseUrl = src.split('?')[0];
+  const fullUrl = getImageKitUrl(src);
+  const baseUrl = fullUrl.split('?')[0];
   
   // Return responsive srcSet
   return `
@@ -729,7 +739,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
               {image.src && (
                 <img
                   ref={imageRef}
-                  src={image.src}
+                  src={getImageKitUrl(image.src)}
                   srcSet={getResponsiveSrcSet(image.src)}
                   sizes="(max-width: 640px) 90vw, (max-width: 1024px) 80vw, (max-width: 1280px) 70vw, 60vw"
                   alt={image.title || "Image"}
@@ -747,10 +757,10 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
               {/* Invisible preload images for next/previous images */}
               {prevImage && prevImage.src && (
-                <link rel="preload" as="image" href={prevImage.src} />
+                <link rel="preload" as="image" href={getImageKitUrl(prevImage.src)} />
               )}
               {nextImage && nextImage.src && (
-                <link rel="preload" as="image" href={nextImage.src} />
+                <link rel="preload" as="image" href={getImageKitUrl(nextImage.src)} />
               )}
             </div>
           )}

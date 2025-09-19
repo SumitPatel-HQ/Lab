@@ -1,415 +1,132 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ArrowLeft, LayoutGrid, ChevronDown, DownloadCloud, EyeIcon } from 'lucide-react';
-import type { Image } from '../services/imageService';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ArrowLeft, LayoutGrid } from 'lucide-react';
+import InfiniteScroll from 'react-infinite-scroll-component';
+import { getAllImages, type ImageKitImage as Image } from '../services/imageKitService';
 import ImageModal from './ImageModal';
-
-// Add isMobile detection utility
-const isMobileDevice = () => {
-  return (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) || 
-         (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-};
-
-// Enhanced configuration for hover effects
-const HOVER_CONFIG = {
-  MAX_TILT: 10, // Maximum rotation in degrees
-  SCALE_FACTOR: 1.7, // How much to scale up on hover
-  TRANSITION_SPEED: 0.7, // Transition speed in seconds
-  PERSPECTIVE: 1000, // Perspective value for 3D effect
-  SHADOW_COLOR: 'rgba(0,0,0,0.2)', // Shadow color
-};
 
 interface ImageGridProps {
   images: Image[];
   onClose: () => void;
 }
 
-// Add tilt interface for tracking tilt state per image
-interface TiltState {
-  id: string;
-  rotateX: number;
-  rotateY: number;
-  isHovering: boolean;
-}
-
-const IMAGES_PER_LOAD = 40; // Number of images to load in each batch
-const MOBILE_IMAGES_PER_LOAD = 20; // Fewer images per batch on mobile for better performance
+const IMAGES_PER_LOAD = 15; // Load 15 images per batch after initial 30
 
 const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
-  const [animate, setAnimate] = useState(false);
+  const [allImages, setAllImages] = useState<Image[]>([]);
   const [visibleImages, setVisibleImages] = useState<Image[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'masonry'>('masonry');
-  const [gridDensity, setGridDensity] = useState(5); // Default grid density (3 out of 5)
-  const [forceUpdate, setForceUpdate] = useState(5); // Add force update state
+  const [gridDensity, setGridDensity] = useState(3);
   const [selectedImage, setSelectedImage] = useState<Image | null>(null);
   const [isDraggingSlider, setIsDraggingSlider] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-  const gridContainerRef = useRef<HTMLDivElement>(null);
-  const sliderRef = useRef<HTMLDivElement>(null);
+  
   const sliderTrackRef = useRef<HTMLDivElement>(null);
-  const [newBatchLoaded, setNewBatchLoaded] = useState(false);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const observedElements = useRef<Map<string, HTMLDivElement>>(new Map());
-  // Add ref to track processed image IDs to avoid duplicate processing
-  const processedImageIds = useRef<Set<string>>(new Set());
 
-  // Add new states for tilt effect
-  const [isMobile, setIsMobile] = useState(false);
-  const [tiltStates, setTiltStates] = useState<Record<string, TiltState>>({});
-  
-  // CSS for space-columns class to improve column distribution
-  const spaceColumnsStyle = `
-    .space-columns {
-      column-fill: balance;
-    }
-    .space-columns > div {
-      break-inside: avoid;
-      page-break-inside: avoid;
-      -webkit-column-break-inside: avoid;
-      display: inline-block;
-      width: 100%;
-      margin-bottom: 16px; /* Add consistent spacing */
-    }
-    
-    /* Ensure images maintain aspect ratio during loading */
-    .space-columns img {
-      max-width: 100%;
-      height: auto;
-      display: block;
-    }
-    
-    /* Help distribute content more evenly */
-    @media (min-width: 640px) {
-      .space-columns[data-density="1"] > div:nth-child(2n+1),
-      .space-columns[data-density="2"] > div:nth-child(3n+1),
-      .space-columns[data-density="3"] > div:nth-child(4n+1),
-      .space-columns[data-density="4"] > div:nth-child(5n+1),
-      .space-columns[data-density="5"] > div:nth-child(6n+1) {
-        clear: left;
+  const INITIAL_LOAD = 30;
+  const IMAGES_PER_LOAD = 15;
+
+  // Load all images once at startup
+  useEffect(() => {
+    const loadAllImages = async () => {
+      try {
+        console.log('🔍 Discovering all available images...');
+        const allDiscoveredImages = await getAllImages();
+        console.log(`✅ Found ${allDiscoveredImages.length} total images`);
+        
+        setAllImages(allDiscoveredImages);
+        setVisibleImages(allDiscoveredImages.slice(0, INITIAL_LOAD));
+        setHasMore(allDiscoveredImages.length > INITIAL_LOAD);
+      } catch (error) {
+        console.error('Error loading images:', error);
+        // Fallback to initial images if discovery fails
+        setAllImages(images);
+        setVisibleImages(images.slice(0, INITIAL_LOAD));
+        setHasMore(images.length > INITIAL_LOAD);
       }
-    }
-  `;
-  
-  // Check if device is mobile on mount
-  useEffect(() => {
-    setIsMobile(isMobileDevice());
-  }, []);
-  
-  // Setup smooth scroll behavior when component mounts
-  useEffect(() => {
-    // Set smooth scrolling for the entire document
-    document.documentElement.style.scrollBehavior = 'smooth';
-    
-    // Cleanup function to reset when component unmounts
-    return () => {
-      document.documentElement.style.scrollBehavior = '';
     };
-  }, []);
-  
-  useEffect(() => {
-    setAnimate(true);
-  }, []);
-  
-  // Apply adjustments when layout mode changes
-  useEffect(() => {
-    // Ensure grid density is appropriate for the layout mode
-    if (layoutMode === 'grid' && gridDensity < 2) {
-      setGridDensity(2); // Minimum 2 for grid layout
-    }
-  }, [layoutMode, gridDensity]);
-  
-  // Initialize with first batch of images
-  useEffect(() => {
-    setVisibleImages(images.slice(0, IMAGES_PER_LOAD));
+
+    loadAllImages();
   }, [images]);
 
-  // Setup intersection observer for lazy loading
-  useEffect(() => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-
-    // Create a new IntersectionObserver
-    observerRef.current = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          // Get the image element
-          const image = entry.target.querySelector('img');
-          if (image && image.dataset.src) {
-            // Load the actual image
-            image.src = image.dataset.src;
-            // Stop observing this element
-            observerRef.current?.unobserve(entry.target);
-          }
-        }
-      });
-    }, { 
-      rootMargin: '200px', // Start loading when image is within 200px
-      threshold: 0.1 // 10% visibility
-    });
-
-    // Observe all of our image containers
-    observedElements.current.forEach(element => {
-      observerRef.current?.observe(element);
-    });
-
-    return () => {
-      observerRef.current?.disconnect();
-    };
-  }, [visibleImages]);
-  
-  // Define loadMoreImages before it's used in the useEffect hook
-  const loadMoreImages = useCallback(() => {
-    if (isLoading || visibleImages.length >= images.length) return;
-
-    setIsLoading(true);
-    setNewBatchLoaded(true);
-    
-    // Load exactly 40 more images (or fewer on mobile) when button is clicked
-    const batchSize = isMobile ? MOBILE_IMAGES_PER_LOAD : IMAGES_PER_LOAD;
-    
-    requestAnimationFrame(() => {
-      const nextBatch = images.slice(
-        visibleImages.length, 
-        visibleImages.length + batchSize
-      );
-      
-      // Small delay to prepare for animation
-      setTimeout(() => {
-        setVisibleImages(prev => [...prev, ...nextBatch]);
-        setIsLoading(false);
-        
-        // Reset the new batch loaded flag after animation completes
-        setTimeout(() => {
-          setNewBatchLoaded(false);
-        }, 1000);
-      }, 50);
-    });
-  }, [isLoading, visibleImages.length, images, isMobile]);
-  
-  // Load all remaining images
-  const loadAllImages = useCallback(() => {
-    if (isLoading || visibleImages.length >= images.length) return;
-    
-    setIsLoading(true);
-    setNewBatchLoaded(true);
-    
-    // Calculate remaining images
-    const remainingImages = images.slice(visibleImages.length);
-    const totalRemaining = remainingImages.length;
-    
-    if (totalRemaining === 0) {
-      setIsLoading(false);
-      setNewBatchLoaded(false);
+  // Load more images for infinite scroll
+  const fetchMoreData = useCallback(() => {
+    if (visibleImages.length >= allImages.length) {
+      setHasMore(false);
       return;
     }
-    
-    // Use a more progressive loading strategy that preserves layout better
-    const progressiveLoad = () => {
-      // Define optimal batch size based on screen width and grid density
-      const columnsCount = Math.min(5, Math.max(1, gridDensity));
-      // Load approximately 2-4 rows at a time, depending on device capability
-      const optimalBatchSize = isMobile ? columnsCount * 2 : columnsCount * 4;
-      
-      // Distribute images more evenly across columns
-      const distributeImagesAcrossColumns = (imagesToDistribute: Image[]) => {
-        // Create a balanced set of images for each column
-        const distributedImages = [...imagesToDistribute];
-        
-        // Sort images to ensure they're evenly distributed
-        distributedImages.sort((a, b) => {
-          const colA = getOptimalColumnIndex(a.id, columnsCount);
-          const colB = getOptimalColumnIndex(b.id, columnsCount);
-          return colA - colB;
-        });
-        
-        return distributedImages;
-      };
-      
-      let loadedCount = 0;
-      let currentBatchSize = Math.min(optimalBatchSize, totalRemaining);
-      
-      // Load first batch immediately
-      requestAnimationFrame(() => {
-        const rawFirstBatch = remainingImages.slice(0, currentBatchSize);
-        const firstBatch = distributeImagesAcrossColumns(rawFirstBatch);
-        loadedCount += firstBatch.length;
-        
-        // Update state with first batch
-        setVisibleImages(prev => [...prev, ...firstBatch]);
-        
-        // If more images to load, schedule next batch
-        if (loadedCount < totalRemaining) {
-          // Use requestIdleCallback (or fallback) to load during browser idle time
-          const requestIdleCallbackPolyfill = 
-            (window as any).requestIdleCallback || 
-            ((callback: Function) => setTimeout(callback, 100));
-            
-          const loadNextBatch = () => {
-            const nextBatchSize = Math.min(optimalBatchSize, totalRemaining - loadedCount);
-            if (nextBatchSize <= 0) {
-              // All done
-              setIsLoading(false);
-              // Reset the new batch loaded flag after animation completes
-              setTimeout(() => {
-                setNewBatchLoaded(false);
-              }, 1000);
-              return;
-            }
-            
-            const rawNextBatch = remainingImages.slice(loadedCount, loadedCount + nextBatchSize);
-            const nextBatch = distributeImagesAcrossColumns(rawNextBatch);
-            loadedCount += nextBatch.length;
-            
-            // Update with next batch
-            setVisibleImages(prev => [...prev, ...nextBatch]);
-            
-            // Continue loading next batch if needed
-            if (loadedCount < totalRemaining) {
-              requestIdleCallbackPolyfill(loadNextBatch);
-            } else {
-              // All done
-              setIsLoading(false);
-              // Reset the new batch loaded flag after animation completes
-              setTimeout(() => {
-                setNewBatchLoaded(false);
-              }, 1000);
-            }
-          };
-          
-          // Schedule first additional batch with a short delay to allow rendering
-          setTimeout(() => {
-            requestIdleCallbackPolyfill(loadNextBatch);
-          }, 100);
-        } else {
-          // All done with just the first batch
-          setIsLoading(false);
-          // Reset the new batch loaded flag after animation completes
-          setTimeout(() => {
-            setNewBatchLoaded(false);
-          }, 1000);
-        }
-      });
-    };
-    
-    // Start progressive loading
-    progressiveLoad();
-  }, [isLoading, visibleImages.length, images, isMobile, gridDensity]);
-  
-  // Setup intersection observer to detect when load more button is in view
-  useEffect(() => {
-    if (!loadMoreRef.current) return;
-    
-    const observer = new IntersectionObserver((entries) => {
-      // Only scroll the button into view, but don't automatically load more images
-      // The actual loading happens when the user clicks the button
-    }, { rootMargin: '200px' }); // Show button before reaching bottom
-    
-    observer.observe(loadMoreRef.current);
-    
-    return () => observer.disconnect();
-  }, []);
-  
-  // Handle slider touch events
-  useEffect(() => {
-    const handleMouseUp = () => {
-      setIsDraggingSlider(false);
-    };
 
-    const handleTouchEnd = () => {
-      setIsDraggingSlider(false);
-    };
+    console.log(`📦 Loading more images... (${visibleImages.length}/${allImages.length})`);
+    
+    // Load next batch with small delay for smooth experience
+    setTimeout(() => {
+      const nextImages = allImages.slice(
+        visibleImages.length, 
+        visibleImages.length + IMAGES_PER_LOAD
+      );
+      
+      setVisibleImages(prev => [...prev, ...nextImages]);
+      
+      // Check if we have more to load
+      setHasMore(visibleImages.length + nextImages.length < allImages.length);
+    }, 300);
+  }, [visibleImages.length, allImages]);
 
+  // Handle slider events
+  useEffect(() => {
+    const handleMouseUp = () => setIsDraggingSlider(false);
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingSlider || !sliderTrackRef.current) return;
-      
       updateSliderPosition(e.clientX);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!isDraggingSlider || !sliderTrackRef.current) return;
-      
-      updateSliderPosition(e.touches[0].clientX);
-      e.preventDefault(); // Prevent scrolling while dragging
     };
 
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchend', handleTouchEnd);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-
+    
     return () => {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('touchmove', handleTouchMove);
     };
   }, [isDraggingSlider]);
 
   const updateSliderPosition = (clientX: number) => {
     if (!sliderTrackRef.current) return;
     
-    const track = sliderTrackRef.current;
-    const rect = track.getBoundingClientRect();
-    const trackWidth = rect.width;
-    const offsetX = clientX - rect.left;
-
-    // Calculate position percentage (0 to 1)
-    let percentage = Math.min(Math.max(0, offsetX / trackWidth), 1);
-    
-    // Convert to grid density (1 to 5)
+    const rect = sliderTrackRef.current.getBoundingClientRect();
+    const percentage = Math.min(Math.max(0, (clientX - rect.left) / rect.width), 1);
     const newDensity = Math.round(percentage * 4) + 1;
     setGridDensity(newDensity);
   };
 
-  const handleSliderTrackMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleSliderClick = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDraggingSlider(true);
     updateSliderPosition(e.clientX);
   };
 
-  const handleSliderTrackTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    setIsDraggingSlider(true);
-    updateSliderPosition(e.touches[0].clientX);
-  };
-
-  const handleSliderThumbMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsDraggingSlider(true);
-  };
-
-  const handleSliderThumbTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    setIsDraggingSlider(true);
-  };
-  
+  // Grid classes based on density
   const getGridClass = () => {
     if (layoutMode === 'masonry') {
-      // For masonry, use explicit column classes based on density
-      // Add space-columns class to ensure better column distribution
-      switch (Math.round(gridDensity)) {
-        case 1: return 'columns-1 sm:columns-2 lg:columns-3 space-columns';
-        case 2: return 'columns-2 sm:columns-3 lg:columns-4 space-columns';
-        case 3: return 'columns-3 sm:columns-4 lg:columns-5 space-columns';
-        case 4: return 'columns-4 sm:columns-5 lg:columns-6 space-columns';
-        case 5: return 'columns-5 sm:columns-6 lg:columns-7 space-columns';
-        default: return 'columns-3 sm:columns-4 lg:columns-5 space-columns';
+      switch (gridDensity) {
+        case 1: return 'columns-1 sm:columns-2';
+        case 2: return 'columns-2 sm:columns-3';
+        case 3: return 'columns-2 sm:columns-3 lg:columns-4';
+        case 4: return 'columns-3 sm:columns-4 lg:columns-5';
+        case 5: return 'columns-4 sm:columns-5 lg:columns-6';
+        default: return 'columns-2 sm:columns-3 lg:columns-4';
       }
     }
     
-    // For regular grid, use explicit grid-cols classes
-    switch (Math.round(gridDensity)) {
-      case 1: return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-2';
-      case 2: return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3';
-      case 3: return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4';
-      case 4: return 'grid-cols-1 sm:grid-cols-3 md:grid-cols-5';
-      case 5: return 'grid-cols-1 sm:grid-cols-3 md:grid-cols-6';
-      default: return 'grid-cols-1 sm:grid-cols-2 md:grid-cols-4';
+    switch (gridDensity) {
+      case 1: return 'grid-cols-1 sm:grid-cols-2';
+      case 2: return 'grid-cols-2 sm:grid-cols-3';
+      case 3: return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+      case 4: return 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+      case 5: return 'grid-cols-4 sm:grid-cols-5 lg:grid-cols-6';
+      default: return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
     }
   };
-  
-  const getGridGapClass = () => {
-    // Explicit gap classes based on density
-    switch (Math.round(gridDensity)) {
+
+  const getGapClass = () => {
+    switch (gridDensity) {
       case 1: return 'gap-6';
       case 2: return 'gap-5';
       case 3: return 'gap-4';
@@ -418,80 +135,15 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
       default: return 'gap-4';
     }
   };
-  
-  const getMasonryItemClass = (image: Image) => {
-    if (layoutMode !== 'masonry') return '';
-    
-    // Adjust the break behavior based on image ratio
-    if (image.ratio === '2:3') {
-      return 'mb-4 sm:mb-5 break-inside-avoid';
-    } else {
-      return 'mb-4 sm:mb-5 break-inside-avoid';
-    }
-  };
 
   const toggleLayout = () => {
-    setLayoutMode(prev => {
-      const newMode = prev === 'grid' ? 'masonry' : 'grid';
-      
-      // Adjust density based on layout mode
-      if (newMode === 'grid' && gridDensity <2 ) {
-        setGridDensity(2);
-      }
-      
-      return newMode;
-    });
+    setLayoutMode(prev => prev === 'grid' ? 'masonry' : 'grid');
   };
+
+  // Modal functions
+  const openModal = (image: Image) => setSelectedImage(image);
+  const closeModal = () => setSelectedImage(null);
   
-  // Add direct controls for density
-  const decreaseDensity = () => {
-    if (gridDensity > 1) {
-      const newValue = gridDensity - 1;
-      setGridDensity(newValue);
-      setForceUpdate(prev => prev + 1);
-    }
-  };
-  
-  const increaseDensity = () => {
-    if (gridDensity < 5) {
-      const newValue = gridDensity + 1;
-      setGridDensity(newValue);
-      setForceUpdate(prev => prev + 1);
-    }
-  };
-  
-  // This function is now unused since we're removing the titles
-  const getDensityLabel = () => {
-    return layoutMode === 'masonry' ? 'Columns' : 'Items per row';
-  };
-  
-  const hasMoreImages = visibleImages.length < images.length;
-
-  // Calculate if an image is newly loaded in this batch
-  const isNewlyLoaded = (index: number) => {
-    return newBatchLoaded && index >= visibleImages.length - IMAGES_PER_LOAD;
-  };
-
-  // Add a function to determine optimal column distribution
-  const getOptimalColumnIndex = (imageId: string, totalColumns: number) => {
-    // Use a hash function to distribute images evenly across columns
-    // This helps maintain consistent column assignment between renders
-    const hash = imageId.split('').reduce((acc, char) => {
-      return acc + char.charCodeAt(0);
-    }, 0);
-    
-    return hash % totalColumns;
-  };
-
-  // Add modal functionality
-  const openModal = (image: Image) => {
-    setSelectedImage(image);
-  };
-
-  const closeModal = () => {
-    setSelectedImage(null);
-  };
-
   const goToNextImage = () => {
     if (!selectedImage) return;
     const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
@@ -506,322 +158,115 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
     setSelectedImage(visibleImages[prevIndex]);
   };
 
-  // Functions to get adjacent images for preloading
-  const getNextImage = (currentImage: Image): Image | null => {
-    const currentIndex = visibleImages.findIndex(img => img.id === currentImage.id);
-    const nextIndex = (currentIndex + 1) % visibleImages.length;
-    return visibleImages[nextIndex] || null;
-  };
-
-  const getPrevImage = (currentImage: Image): Image | null => {
-    const currentIndex = visibleImages.findIndex(img => img.id === currentImage.id);
-    const prevIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
-    return visibleImages[prevIndex] || null;
-  };
-
-  // Add this effect to reset processedImageIds when layout or density changes
-  useEffect(() => {
-    // Reset processed images when grid density or layout changes
-    // This ensures images are re-observed after layout changes
-    processedImageIds.current.clear();
-    
-    // Force re-observation of all visible images
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-      observedElements.current.forEach(element => {
-        observerRef.current?.observe(element);
-      });
-    }
-  }, [gridDensity, layoutMode]);
-
-  // Modify setImageRef to always update the reference
-  const setImageRef = useCallback((element: HTMLDivElement | null, id: string) => {
-    if (element) {
-      // Always update the element reference
-      observedElements.current.set(id, element);
-      
-      // Observe if this element is not being tracked or we're re-observing after layout change
-      if (!processedImageIds.current.has(id) || element !== observedElements.current.get(id)) {
-        observerRef.current?.observe(element);
-        processedImageIds.current.add(id);
-      }
-    } else {
-      observedElements.current.delete(id);
-    }
-  }, []);
-
-  // Add touch swipe detection for the modal
-  const handleSwipeGesture = (direction: 'left' | 'right') => {
-    if (!selectedImage) return;
-    
-    const currentIndex = visibleImages.findIndex(img => img.id === selectedImage.id);
-    if (currentIndex === -1) return;
-    
-    if (direction === 'left') {
-      // Next image
-      const nextIndex = (currentIndex + 1) % visibleImages.length;
-      setSelectedImage(visibleImages[nextIndex]);
-    } else {
-      // Previous image
-      const prevIndex = (currentIndex - 1 + visibleImages.length) % visibleImages.length;
-      setSelectedImage(visibleImages[prevIndex]);
-    }
-  };
-
-  // Add tilt effect handlers
-  const handleMouseMove = (e: React.MouseEvent, imageId: string) => {
-    if (isMobile) return;
-    
-    const element = e.currentTarget;
-    const rect = element.getBoundingClientRect();
-    
-    // Calculate position relative to the center of the image
-    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2; // -1 to 1
-    const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2; // -1 to 1
-    
-    const MAX_TILT = HOVER_CONFIG.MAX_TILT;
-    
-    setTiltStates(prev => ({
-      ...prev,
-      [imageId]: {
-        id: imageId,
-        rotateX: -y * MAX_TILT,
-        rotateY: x * MAX_TILT,
-        isHovering: true
-      }
-    }));
-  };
-  
-  const handleMouseEnter = (imageId: string) => {
-    if (isMobile) return;
-    
-    setTiltStates(prev => ({
-      ...prev,
-      [imageId]: {
-        id: imageId,
-        rotateX: 0,
-        rotateY: 0,
-        isHovering: true
-      }
-    }));
-  };
-  
-  const handleMouseLeave = (imageId: string) => {
-    if (isMobile) return;
-    
-    setTiltStates(prev => ({
-      ...prev,
-      [imageId]: {
-        ...prev[imageId],
-        isHovering: false,
-        rotateX: 0,
-        rotateY: 0
-      }
-    }));
-  };
-  
-  // Get tilt style for an image
-  const getTiltStyle = (imageId: string): React.CSSProperties => {
-    const tiltState = tiltStates[imageId];
-    
-    if (!tiltState || !tiltState.isHovering || isMobile) {
-      return {
-        transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)',
-        transition: `transform ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out, box-shadow ${HOVER_CONFIG.TRANSITION_SPEED}s ease-out`,
-        boxShadow: '0 10px 20px -10px rgba(0,0,0,0)'
-      };
-    }
-    
-    return {
-      transform: `perspective(${HOVER_CONFIG.PERSPECTIVE}px) rotateX(${tiltState.rotateX}deg) rotateY(${tiltState.rotateY}deg) scale(${HOVER_CONFIG.SCALE_FACTOR})`,
-      transition: 'transform 0.05s linear',
-      willChange: 'transform',
-      zIndex: 10,
-      boxShadow: `0 20px 30px -10px ${HOVER_CONFIG.SHADOW_COLOR}`
-    };
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6 overscroll-none">
-      {/* Add style tag for custom CSS */}
-      <style dangerouslySetInnerHTML={{ __html: spaceColumnsStyle }} />
-      
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 px-4 backdrop-blur-md bg-indigo-1/10 rounded-full shadow-2xl">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm transition-colors text-white"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="hidden sm:block">Back</span>
-          </button>
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 px-4 backdrop-blur-md bg-black/10 rounded-full shadow-2xl">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm transition-colors text-white"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="hidden sm:block">Back</span>
+            </button>
+          </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center bg-white/10 rounded-full backdrop-blur-sm p-2 px-2">
-              <button
-                onClick={toggleLayout}
-                className="p-2 rounded-full bg-indigo-600 text-white"
-                aria-label="Toggle layout mode"
-              >
-                <LayoutGrid className="w-5 h-5" />
-                <span className="sr-only">Toggle Layout</span>
-              </button>
-            </div>
+            {/* Layout Toggle */}
+            <button
+              onClick={toggleLayout}
+              className="p-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+              aria-label="Toggle layout mode"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
             
-            {/* Density controls */}
+            {/* Density Controls */}
             <div className="flex items-center gap-2 bg-white/10 rounded-full backdrop-blur-sm py-2 px-4">
               <button 
-                onClick={decreaseDensity}
+                onClick={() => setGridDensity(Math.max(1, gridDensity - 1))}
                 disabled={gridDensity <= 1}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/30 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:bg-white/30"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/30 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 aria-label="Decrease density"
               >
-                <span className="text-lg leading-none flex items-center justify-center h-5">-</span>
+                -
               </button>
               
-              <div>
+              {/* Slider */}
+              <div 
+                ref={sliderTrackRef}
+                className="w-28 h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full relative cursor-pointer"
+                onMouseDown={handleSliderClick}
+                role="slider"
+                aria-valuemin={1}
+                aria-valuemax={5}
+                aria-valuenow={gridDensity}
+              >
                 <div 
-                  ref={sliderTrackRef}
-                  className="w-28 sm:w-36 h-2 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full relative cursor-pointer"
-                  onMouseDown={handleSliderTrackMouseDown}
-                  onTouchStart={handleSliderTrackTouchStart}
-                  role="slider"
-                  aria-valuemin={1}
-                  aria-valuemax={5}
-                  aria-valuenow={gridDensity}
-                  aria-label={layoutMode === 'masonry' ? 'Adjust column count' : 'Adjust items per row'}
-                  tabIndex={0}
-                >
-                  <div 
-                    ref={sliderRef}
-                    className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-md cursor-pointer transition-all touch-action-none"
-                    style={{ 
-                      left: gridDensity === 5 
-                        ? 'calc(100% - 15px)' 
-                        : `calc(${(gridDensity - 1) * 25}%)`
-                    }}
-                    onMouseDown={handleSliderThumbMouseDown}
-                    onTouchStart={handleSliderThumbTouchStart}
-                  />
-                </div>
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-md cursor-pointer"
+                  style={{ 
+                    left: gridDensity === 5 ? 'calc(100% - 8px)' : `calc(${(gridDensity - 1) * 25}%)`
+                  }}
+                />
               </div>
               
               <button 
-                onClick={increaseDensity}
+                onClick={() => setGridDensity(Math.min(5, gridDensity + 1))}
                 disabled={gridDensity >= 5}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/30 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:bg-white/30"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/30 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 aria-label="Increase density"
               >
-                <span className="text-lg leading-none flex items-center justify-center h-5">+</span>
+                +
               </button>
             </div>
           </div>
         </div>
         
-        {/* Use key to force re-render when layout or density changes */}
-        <div 
-          ref={gridContainerRef}
-          key={`${layoutMode}-${gridDensity}-${forceUpdate}`}
-          className={`${
-            layoutMode === 'grid' 
-              ? `grid ${getGridClass()} ${getGridGapClass()}` 
-              : getGridClass()
-          } w-full will-change-transform`}
-          data-density={gridDensity}
+        {/* Image Grid with Infinite Scroll */}
+        <InfiniteScroll
+          dataLength={visibleImages.length}
+          next={fetchMoreData}
+          hasMore={hasMore}
+          loader={<div className="text-center text-white py-4">Loading more images...</div>}
+          endMessage={
+            <div className="text-center text-gray-400 py-8">
+              <p>You've seen all {visibleImages.length} images!</p>
+            </div>
+          }
         >
-          {visibleImages.map((image, index) => (
-            <div
-              key={image.id}
-              ref={(el) => setImageRef(el, image.id)}
-              className={`${getMasonryItemClass(image)} ${
-                isNewlyLoaded(index) 
-                  ? 'animate-card-appear opacity-0' 
-                  : ''
-              } group relative`}
-              style={{
-                animationDelay: `${Math.min(index % IMAGES_PER_LOAD * 50, 1000)}ms`,
-                ...(layoutMode === 'masonry' ? {
-                  order: getOptimalColumnIndex(image.id, Math.max(1, gridDensity))
-                } : {})
-              }}
-              data-column={getOptimalColumnIndex(image.id, Math.max(1, gridDensity))}
-              onClick={() => openModal(image)}
-              onMouseMove={(e) => handleMouseMove(e, image.id)}
-              onMouseEnter={() => handleMouseEnter(image.id)}
-              onMouseLeave={() => handleMouseLeave(image.id)}
-            >
-              <div 
-                className="relative overflow-hidden rounded-lg shadow-md group-hover:shadow-xl duration-300"
-                style={getTiltStyle(image.id)}
+          <div 
+            className={`${
+              layoutMode === 'grid' 
+                ? `grid ${getGridClass()} ${getGapClass()}` 
+                : `${getGridClass()} gap-4`
+            } w-full`}
+          >
+            {visibleImages.map((image) => (
+              <div
+                key={image.id}
+                className={`${layoutMode === 'masonry' ? 'mb-4 break-inside-avoid' : ''} group relative cursor-pointer`}
+                onClick={() => openModal(image)}
               >
-                <div className={`${image.ratio === '2:3' ? 'pb-[150%]' : 'pb-[66.67%]'} bg-gray-800 relative`}>
-                  <img 
-                    className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 opacity-0"
-                    data-src={image.src}
-                    src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" // Tiny placeholder
-                    alt={image.title}
-                    loading="lazy"
-                    onLoad={(e) => {
-                      // When image is loaded from data-src, fade it in
-                      if ((e.target as HTMLImageElement).src !== "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E") {
-                        (e.target as HTMLImageElement).classList.replace('opacity-0', 'opacity-100');
-                      }
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                  <h3 className="text-white text-sm font-medium">{image.title}</h3>
+                <div className="relative overflow-hidden rounded-lg shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                  <div className={`${image.ratio === '2:3' ? 'pb-[150%]' : 'pb-[66.67%]'} bg-gray-800 relative`}>
+                    <img 
+                      className="absolute inset-0 w-full h-full object-cover"
+                      src={image.src}
+                      alt={image.title}
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-3 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                    <h3 className="text-white text-sm font-medium">{image.title}</h3>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-        
-        {hasMoreImages && (
-          <div 
-            ref={loadMoreRef}
-            className="flex justify-center mt-8 mb-4 gap-4 "
-          >
-            <button
-              onClick={loadMoreImages}
-              disabled={isLoading}
-              className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-1"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Loading...</span>
-                </>
-              ) : (
-                <>
-                  <span className='text-sm'>Load More</span>
-                  <ChevronDown className="w-5 h-5" />
-                </>
-              )}
-            </button>
-            
-            <button
-              onClick={loadAllImages}
-              disabled={isLoading}
-              className="px-4 py-3 bg-purple-600 hover:bg-purple-700 rounded-full text-white font-medium shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-70 disabled:scale-100 flex items-center gap-2"
-              aria-label="See all images"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Loading...</span>
-                </>
-              ) : (
-                <>
-                  <span className="hidden sm:block text-sm">See All</span>
-                  <EyeIcon className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            ))}
           </div>
-        )}
+        </InfiniteScroll>
       </div>
 
       {/* Image Modal */}
@@ -833,9 +278,9 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
           onPrev={goToPrevImage}
           totalImages={visibleImages.length}
           currentIndex={visibleImages.findIndex(img => img.id === selectedImage.id)}
-          enableTilt={!isMobile} // Pass tilt enablement to modal
-          prevImage={getPrevImage(selectedImage)}
-          nextImage={getNextImage(selectedImage)}
+          enableTilt={false}
+          prevImage={null}
+          nextImage={null}
         />
       )}
     </div>
