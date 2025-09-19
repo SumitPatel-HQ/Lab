@@ -1,13 +1,17 @@
 next problems ⚠️
 front end part
-initial load take too much time  
-shuffle function working
-
-swap load more images with loader animation 
-small ui tweaks to -> liquid glass
-use barba js 
-remove schrol bar
+shuffle function not working
+check if every thing is center align
+proper loading animation 
+remove scroll bar
 
 solved problems ✅
-all images load properly✅
+all images loads properly✅
+loading fixed✅
 Optimized the service files ✅
+website is lag free✅
+shortend file namesz✅
+
+New feature
+use barba js
+small ui tweaks to -> liquid glass 

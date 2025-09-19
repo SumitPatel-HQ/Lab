@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import ImageGalleryImageKit from './components/ImageGalleryImageKit';
+import Gallery from './components/Gallery';
 import PasswordProtection from './components/PasswordProtection';
-import useSecurityProtection from './hooks/useSecurityProtection';
+import useSecurityProtection from './hooks/useSecurity';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -41,7 +41,7 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-gray-900 dark:bg-gray-900 ${isBlurred ? blurClassName : ''}`}>
-      <ImageGalleryImageKit />
+      <Gallery />
     </div>
   );
 }
@@ -55,6 +55,6 @@ export default App;
           correctPassword={PASSWORD} 
         />
       ) : (
-        <ImageGalleryImageKit />
+        <Gallery />
       )}
 */
