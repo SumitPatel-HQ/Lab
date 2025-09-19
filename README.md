@@ -10,3 +10,4 @@ remove schrol bar
 
 solved problems ✅
 all images load properly✅
+Optimized the service files ✅
