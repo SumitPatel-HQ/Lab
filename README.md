@@ -3,6 +3,7 @@ front end part
 proper loading animation 
 remove useless comments and console logs
 proper hovering animation
+mobile frontend config
 
 
 solved problems ✅
