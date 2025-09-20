@@ -1,6 +1,5 @@
 next problems ⚠️
 front end part
-shuffle function not working
 check if every thing is center align
 proper loading animation 
 remove scroll bar
@@ -12,6 +11,8 @@ Optimized the service files ✅
 website is lag free✅
 shortend file namesz✅
 Folder & file Structure organised ✅
+shuffle function✅
+
 
 New feature
 use barba js

@@ -33,7 +33,6 @@ const Gallery: React.FC = () => {
   const { 
     images, 
     loading, 
-    shuffleLoading, 
     loadAllImagesWithSmartDetection, 
     randomImage 
   } = useGallery({ currentIndex });
@@ -67,8 +66,8 @@ const Gallery: React.FC = () => {
   const openImageModal = () => setShowModal(true);
   const closeImageModal = () => setShowModal(false);
 
-  const handleRandomImage = () => {
-    const newIndex = randomImage();
+  const handleRandomImage = async () => {
+    const newIndex = await randomImage();
     if (newIndex !== undefined) {
       setCurrentIndex(newIndex);
       setIsTransitioning(true);
@@ -158,7 +157,6 @@ const Gallery: React.FC = () => {
           onRandom={handleRandomImage}
           onOpenGrid={openGrid}
           onLoadAll={loadAllImagesWithSmartDetection}
-          shuffleLoading={shuffleLoading}
           loading={loading}
           currentIndex={currentIndex}
           visibleIndicators={visibleIndicators}
