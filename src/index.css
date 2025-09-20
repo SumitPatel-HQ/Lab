@@ -21,9 +21,11 @@
     overscroll-behavior-x: none;
   }
 
-  /* Prevent overscroll on all elements */
+  /* Universal element styles */
   * {
     overscroll-behavior: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   /* Optimize images and animation for GPU acceleration */
@@ -44,17 +46,5 @@
     display: none;
     width: 0;
     height: 0;
-  }
-  
-  /* For Firefox */
-  * {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  
-  /* Ensure smooth scrolling */
-  html {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
   }
 }
