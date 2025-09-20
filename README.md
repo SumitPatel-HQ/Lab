@@ -1,8 +1,9 @@
 next problems ⚠️
 front end part
-check if every thing is center align
 proper loading animation 
 remove scroll bar
+remove useless comments and console logs
+remove the footer
 
 solved problems ✅
 all images loads properly✅
@@ -13,6 +14,7 @@ shortend file namesz✅
 Folder & file Structure organised ✅
 shuffle function work properly✅
 fixed viewport of home page✅
+everything is centered✅
 
 
 New feature
