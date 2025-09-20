@@ -1,7 +1,6 @@
 next problems ⚠️
 front end part
 proper loading animation 
-remove scroll bar
 remove useless comments and console logs
 proper hovering animation
 
