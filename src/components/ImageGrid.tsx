@@ -3,6 +3,7 @@ import { ArrowLeft, LayoutGrid } from 'lucide-react';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import { getAllImages, type ImageKitImage as Image } from '../services/ImageKit';
 import ImageModal from './ImageModal';
+import ScrollToTop from './ScrollToTop';
 
 interface ImageGridProps {
   images: Image[];
@@ -157,7 +158,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 p-4 sm:p-6" style={{overscrollBehavior: 'none'}}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sticky top-0 z-10 py-2 px-4 backdrop-blur-md bg-black/10 rounded-full shadow-2xl">
@@ -266,6 +267,9 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
           </div>
         </InfiniteScroll>
       </div>
+
+      {/* Scroll to Top Button */}
+      <ScrollToTop />
 
       {/* Image Modal */}
       {selectedImage && (

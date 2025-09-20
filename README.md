@@ -3,7 +3,8 @@ front end part
 proper loading animation 
 remove scroll bar
 remove useless comments and console logs
-remove the footer
+proper hovering animation
+
 
 solved problems ✅
 all images loads properly✅
@@ -15,7 +16,8 @@ Folder & file Structure organised ✅
 shuffle function work properly✅
 fixed viewport of home page✅
 everything is centered✅
-
+overscroll behaviour fixed✅
+removed scroll bar and add scroll up button✅
 
 New feature
 use barba js

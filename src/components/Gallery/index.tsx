@@ -105,6 +105,7 @@ const Gallery: React.FC = () => {
     <div 
       ref={galleryRef}
       className="fixed inset-0 flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900 overflow-hidden"
+      style={{overscrollBehavior: 'none'}}
     >
       <div 
         className={`w-full h-full relative ${isTransitioning ? 'pointer-events-none' : ''}`}
