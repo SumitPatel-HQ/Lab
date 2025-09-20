@@ -1,7 +1,7 @@
 // Image loading and metadata management
 import type { ImageKitImage, ImageMetadata, BatchResult } from './types';
-import { CONFIG, IMAGEKIT_URL_ENDPOINT, getImageKitPath, testImageExists } from './imageKitConfig';
-import { isImageLoaded, preloadImageKit } from './imageKitCache';
+import { CONFIG, IMAGEKIT_URL_ENDPOINT, getImageKitPath, testImageExists } from './config';
+import { isImageLoaded, preloadImageKit } from './cache';
 
 // Enhanced image metadata extraction
 export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata> => {

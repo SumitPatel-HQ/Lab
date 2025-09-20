@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, LayoutGrid } from 'lucide-react';
 import InfiniteScroll from 'react-infinite-scroll-component';
-import { getAllImages, type ImageKitImage as Image } from '../services/imageKitService';
+import { getAllImages, type ImageKitImage as Image } from '../services/ImageKit';
 import ImageModal from './ImageModal';
 
 interface ImageGridProps {
   images: Image[];
   onClose: () => void;
 }
-
-const IMAGES_PER_LOAD = 15; // Load 15 images per batch after initial 30
 
 const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
   const [allImages, setAllImages] = useState<Image[]>([]);

@@ -11,6 +11,7 @@ loading fixed✅
 Optimized the service files ✅
 website is lag free✅
 shortend file namesz✅
+Folder & file Structure organised ✅
 
 New feature
 use barba js

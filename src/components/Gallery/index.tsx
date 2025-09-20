@@ -1,12 +1,12 @@
 // Optimized ImageKit-powered image gallery
 import React, { useState, useRef, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import ImageGrid from './ImageGrid';
-import ImageModal from './ImageModal';
+import ImageGrid from '../ImageGrid';
+import ImageModal from '../ImageModal';
 import Card from './Card';
 import Controls from './Controls';
-import { useImageLoader } from '../hooks/useLoader';
-import { useTouchHandler } from '../hooks/useTouch';
+import { useGallery } from '../../hooks/useGallery';
+import { useTouchHandler } from '../../hooks/useTouch';
 import { 
   useMobileDetection, 
   useScreenWidth, 
@@ -15,7 +15,7 @@ import {
   useNavigation, 
   useKeyboardNavigation,
   useTransitions 
-} from '../hooks/useUtils';
+} from '../../hooks/useUtils';
 
 const Gallery: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -36,7 +36,7 @@ const Gallery: React.FC = () => {
     shuffleLoading, 
     loadAllImagesWithSmartDetection, 
     randomImage 
-  } = useImageLoader({ currentIndex });
+  } = useGallery({ currentIndex });
 
   const { prevImage, nextImage, getAdjacentImages } = useNavigation(
     images, 

@@ -1,6 +1,6 @@
 // Image discovery algorithms
 import type { ImageRange } from './types';
-import { CONFIG, getImageKitPath, testImageExists } from './imageKitConfig';
+import { CONFIG, getImageKitPath, testImageExists } from './config';
 
 // Smart discovery using binary search to find actual range
 export const findImageRange = async (): Promise<ImageRange> => {

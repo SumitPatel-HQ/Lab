@@ -1,5 +1,5 @@
 // ImageKit cache management
-import { CONFIG, IMAGEKIT_URL_ENDPOINT } from './imageKitConfig';
+import { CONFIG, IMAGEKIT_URL_ENDPOINT } from './config';
 
 // Initialize cache from localStorage if available
 let imageCache: Map<string, boolean>;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { type ImageKitImage as ImageType } from '../services/imageKitService';
+import { type ImageKitImage as ImageType } from '../services/ImageKit';
 
 // Mobile detection utility
 export const isMobileDevice = () => {

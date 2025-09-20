@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Image as IKImage } from '@imagekit/react';
-import { type ImageKitImage as ImageType, IMAGEKIT_URL_ENDPOINT } from '../services/imageKitService';
+import { type ImageKitImage as ImageType, IMAGEKIT_URL_ENDPOINT } from '../../services/ImageKit';
 
 interface CardProps {
   image: ImageType;

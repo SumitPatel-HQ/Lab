@@ -1,6 +1,6 @@
 // Main ImageKit service - Clean public API (40 lines vs 597!)
 import type { ImageKitImage } from './types';
-import { findImageRange, getEstimatedImageCount, getTotalImageCount } from './imageKitDiscovery';
+import { findImageRange, getEstimatedImageCount, getTotalImageCount } from './discovery';
 import { 
   discoverAvailableImages, 
   getAllImagesInRange, 
@@ -8,16 +8,16 @@ import {
   getImageById,
   getImageWithRatio,
   getPreloadedImage
-} from './imageKitLoader';
+} from './loader';
 
 // Re-export cache functions
-export { preloadImageKit, markImageLoaded, isImageLoaded, resetImageCache } from './imageKitCache';
+export { preloadImageKit, markImageLoaded, isImageLoaded, resetImageCache } from './cache';
 
 // Re-export types
 export type { ImageKitImage } from './types';
 
 // Re-export config
-export { IMAGEKIT_URL_ENDPOINT } from './imageKitConfig';
+export { IMAGEKIT_URL_ENDPOINT } from './config';
 
 // Main API functions
 

@@ -6,7 +6,7 @@ import {
   getInitialImages, 
   type ImageKitImage as ImageType,
   IMAGEKIT_URL_ENDPOINT 
-} from '../services/imageKitService';
+} from '../services/ImageKit';
 
 interface UseImageLoaderConfig {
   currentIndex: number;
@@ -24,7 +24,7 @@ interface UseImageLoaderReturn {
 
 const PRELOAD_IMAGES = 3;
 
-export const useImageLoader = ({ 
+export const useGallery = ({ 
   currentIndex, 
   preloadCount = PRELOAD_IMAGES 
 }: UseImageLoaderConfig): UseImageLoaderReturn => {

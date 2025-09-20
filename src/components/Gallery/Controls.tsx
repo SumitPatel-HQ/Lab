@@ -19,9 +19,7 @@ const Controls: React.FC<ControlsProps> = React.memo(({
   onNext,
   onRandom,
   onOpenGrid,
-  onLoadAll,
   shuffleLoading,
-  loading,
   currentIndex,
   visibleIndicators,
   onIndicatorClick
@@ -74,22 +72,7 @@ const Controls: React.FC<ControlsProps> = React.memo(({
             <span className="font-medium">Library</span>
           </button>
           
-          <button 
-            onClick={onLoadAll}
-            disabled={loading}
-            className={`flex items-center gap-2 px-4 py-3 rounded-full ${
-              loading 
-                ? 'bg-black/30 text-gray-400' 
-                : 'bg-indigo-600/80 hover:bg-indigo-600 text-white'
-            } backdrop-blur-sm transition-all duration-300 hover:scale-105 shadow-lg`}
-            aria-label="Load all images"
-          >
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <span className="text-sm font-medium">Load All</span>
-            )}
-          </button>
+        
         </div>
         
         {/* Image Indicators */}
