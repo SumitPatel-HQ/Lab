@@ -14,6 +14,7 @@ export default {
         'image-zoom-in': 'imageZoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
         'image-zoom-out': 'imageZoomOut 0.3s ease-out forwards',
         'fade-in': 'fadeIn 0.3s ease-out forwards',
+        'shimmer': 'shimmer 2s ease-in-out infinite',
       },
       keyframes: {
         dropdownOpen: {
@@ -53,6 +54,10 @@ export default {
         fadeIn: {
           '0%': { opacity: 0 },
           '100%': { opacity: 1 },
+        },
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
         },
       },
       transitionProperty: {

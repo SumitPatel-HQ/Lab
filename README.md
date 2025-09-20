@@ -1,9 +1,9 @@
 next problems ⚠️
 front end part
-proper loading animation 
+
 remove useless comments and console logs
-proper hovering animation
-mobile frontend config
+proper hovering animation on images
+mobile frontend config -> main and big
 
 
 solved problems ✅
@@ -18,6 +18,8 @@ fixed viewport of home page✅
 everything is centered✅
 overscroll behaviour fixed✅
 removed scroll bar and add scroll up button✅
+proper loading animation -> lightwind skeleton✅
+navbar fixed ✅
 
 New feature
 use barba js

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Gallery from './components/Gallery';
 import PasswordProtection from './components/PasswordProtection';
 import useSecurityProtection from './hooks/useSecurity';
@@ -41,14 +41,7 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-gray-900 dark:bg-gray-900 ${isBlurred ? blurClassName : ''}`}>
-    {!isAuthenticated ? (
-        <PasswordProtection 
-          onAuthenticated={handleAuthentication} 
-          correctPassword={PASSWORD} 
-        />
-      ) : (
-        <Gallery />
-      )}
+    <Gallery />
     </div>
   );
 }

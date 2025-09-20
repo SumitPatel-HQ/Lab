@@ -1,9 +1,9 @@
 // Optimized ImageKit-powered image gallery
 import React, { useState, useRef, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import ImageGrid from '../ImageGrid';
+import { ImageGrid } from '../ImageGrid/exports';
 import ImageModal from '../ImageModal';
-import Card from './Card';
+import { Card } from '../loading-placeholders';
 import Controls from './Controls';
 import { useGallery } from '../../hooks/gallery';
 import { useTouchHandler } from '../../hooks/useTouch';
