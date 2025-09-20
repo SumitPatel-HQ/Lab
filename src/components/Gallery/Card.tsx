@@ -74,9 +74,9 @@ const Card: React.FC<CardProps> = React.memo(({
   // Determine aspect ratio class based on the image ratio
   const getAspectRatioClass = () => {
     if (image.ratio === '3:2') {
-      return 'aspect-[3/2] max-h-[60vh]';
+      return 'aspect-[3/2] max-h-[80vh]';
     }
-    return 'aspect-[2/3] max-h-[70vh]';
+    return 'aspect-[2/3] max-h-[100vh]';
   };
 
   const style = getCardStyle();
@@ -102,7 +102,7 @@ const Card: React.FC<CardProps> = React.memo(({
 
   return (
     <div 
-      className={`absolute top-1/2 left-1/2 w-[80vw] max-w-sm ${getTransitionClass()}`}
+      className={`absolute top-1/2 left-1/2 w-[85vw] max-w-xl ${getTransitionClass()}`}
       style={{
         zIndex: style.zIndex,
         opacity: style.opacity,

@@ -5,7 +5,7 @@ import ImageGrid from '../ImageGrid';
 import ImageModal from '../ImageModal';
 import Card from './Card';
 import Controls from './Controls';
-import { useGallery } from '../../hooks/useGallery';
+import { useGallery } from '../../hooks/gallery';
 import { useTouchHandler } from '../../hooks/useTouch';
 import { 
   useMobileDetection, 
