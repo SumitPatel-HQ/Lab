@@ -1,0 +1,33 @@
+# Development files
+.vscode/
+.git/
+node_modules/
+.env
+
+# Build outputs (Vercel will build from source)
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Cache
+.cache/
+.pnpm-store/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+*.swp
+*.swo
+
+# Development and test files
+.env.local
+.env.development
+.env.test
