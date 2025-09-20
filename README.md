@@ -20,6 +20,7 @@ overscroll behaviour fixed✅
 removed scroll bar and add scroll up button✅
 proper loading animation -> lightwind skeleton✅
 navbar fixed ✅
+liquid glass type effect ✅
 
 New feature
 use barba js
