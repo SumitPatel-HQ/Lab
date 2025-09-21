@@ -63,6 +63,7 @@ export const IMAGE_TRANSFORMATIONS = {
     quality: 100, // Ultra-high quality for main gallery images
     format: "auto" as const,
     progressive: true,
+    width: 1600, // Constrain width to speed up loading while staying sharp
     dpr: 2 // High DPI support for crisp images
   }]
 };

@@ -9,6 +9,7 @@ mobile frontend config -> main and big
 
 
 
+
 solved problems ✅
 all images loads properly✅
 loading fixed✅

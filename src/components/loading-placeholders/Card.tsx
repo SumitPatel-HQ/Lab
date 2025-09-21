@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Image as IKImage } from '@imagekit/react';
 import { type ImageKitImage as ImageType, IMAGEKIT_URL_ENDPOINT } from '../../services/ImageKit';
 import { 
@@ -29,6 +29,13 @@ const Card: React.FC<CardProps> = React.memo(({
   const [placeholderLoaded, setPlaceholderLoaded] = useState(false);
   const [showSkeleton, setShowSkeleton] = useState(true);
 
+  // Reset loading state when image source changes (e.g., on shuffle)
+  useEffect(() => {
+    setLoaded(false);
+    setPlaceholderLoaded(false);
+    setShowSkeleton(true);
+  }, [image.src]);
+
   const handleMainImageLoad = useCallback(() => {
     setLoaded(true);
     setTimeout(() => setShowSkeleton(false), 100);
@@ -36,6 +43,13 @@ const Card: React.FC<CardProps> = React.memo(({
 
   const handlePlaceholderLoad = useCallback(() => {
     setPlaceholderLoaded(true);
+  }, []);
+
+  const handleImageError = useCallback(() => {
+    // If image fails, hide skeleton to avoid stuck state and show fallback styling
+    setLoaded(false);
+    setPlaceholderLoaded(false);
+    setShowSkeleton(false);
   }, []);
 
   const aspectRatioClass = getAspectRatioClass(image.ratio);
@@ -77,6 +91,7 @@ const Card: React.FC<CardProps> = React.memo(({
             placeholderLoaded ? 'opacity-30' : 'opacity-0'
           } ${showSkeleton ? 'invisible' : 'visible'}`}
           onLoad={handlePlaceholderLoad}
+          onError={handleImageError}
           transformation={IMAGE_TRANSFORMATIONS.placeholder}
         />
 
@@ -97,6 +112,7 @@ const Card: React.FC<CardProps> = React.memo(({
             filter: 'contrast(1.02) saturate(1.02)', // Slight enhancement
           }}
           onLoad={handleMainImageLoad}
+          onError={handleImageError}
           transformation={IMAGE_TRANSFORMATIONS.main}
         />
       </div>

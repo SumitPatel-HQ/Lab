@@ -45,7 +45,7 @@ const ScrollToTop: React.FC<ScrollToTopProps> = ({
   return (
     <button
       onClick={scrollToTop}
-      className={`fixed bottom-6 right-6 z-50 p-3 md:p-4 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-black/60 transition-all duration-300 shadow-xl hover:scale-110 transform animate-fade-in ${className}`}
+      className={`fixed bottom-6 right-6 z-50 p-3 md:p-4 rounded-full bg-black/30 backdrop-blur-xs text-white hover:bg-black/50 transition-all duration-300 shadow-xl hover:scale-110 transform animate-fade-in ${className}`}
       aria-label="Scroll to top"
     >
       <ChevronUp className="w-7 h-7 md:w-10 md:h-10" />

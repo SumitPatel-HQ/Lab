@@ -3,7 +3,6 @@ import { AnimatePresence } from 'framer-motion';
 import { Card } from '../loading-placeholders';
 import ImageModal from '../ImageModal';
 import Controls from './Controls';
-import { getUltraHighQualityImageSrc } from '../../hooks/useUtils';
 import type { ImageKitImage } from '../../services/ImageKit';
 
 interface MainGalleryViewProps {
@@ -93,10 +92,7 @@ export const MainGalleryView: React.FC<MainGalleryViewProps> = ({
                 onClick={openImageModal}
               >
                 <Card
-                  image={{
-                    ...image,
-                    src: getUltraHighQualityImageSrc(image.src) // Ultra-high quality for main gallery
-                  }}
+                  image={image}
                   index={index}
                   activeIndex={currentIndex}
                   totalImages={images.length}
