@@ -31,4 +31,3 @@ image quality -> 100%✅
 
 New feature
 use barba js
-small ui tweaks to -> liquid glass 

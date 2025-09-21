@@ -1,0 +1,20 @@
+/* Hover animation z-index fix */
+.hover-animation-container {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+.hover-animation-container:hover {
+  z-index: 99999 !important;
+  isolation: isolate !important;
+}
+
+/* Ensure grid items don't create stacking context issues */
+.image-grid-container > * {
+  position: relative;
+}
+
+/* Force z-index for hovered items to break out of any stacking context */
+.hover-animation-container:hover {
+  transform: translateZ(0) !important;
+}
