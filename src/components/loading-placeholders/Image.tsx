@@ -75,9 +75,9 @@ const ImageSkeleton: React.FC<ImageSkeletonProps> = ({
     <div className={`relative ${className}`}>
       {/* Skeleton placeholder - maintains aspect ratio */}
       {showSkeleton && (
-        <div className={`${aspectRatio === '2:3' ? 'aspect-[2/3]' : 'aspect-[3/2]'} bg-gray-800 relative`}>
+        <div className={`${aspectRatio === '2:3' ? 'aspect-[2/3]' : 'aspect-[3/2]'} bg-gray-800 relative rounded-lg`}>
           <Skeleton 
-            className="absolute inset-0 w-full h-full" 
+            className="absolute inset-0 w-full h-full rounded-lg" 
             shimmer 
             variant="square"
           />
@@ -85,10 +85,10 @@ const ImageSkeleton: React.FC<ImageSkeletonProps> = ({
       )}
       
       {/* Image container for proper aspect ratio */}
-      <div className={`${showSkeleton ? 'absolute inset-0' : `${aspectRatio === '2:3' ? 'aspect-[2/3]' : 'aspect-[3/2]'}`} relative`}>
+      <div className={`${showSkeleton ? 'absolute inset-0' : `${aspectRatio === '2:3' ? 'aspect-[2/3]' : 'aspect-[3/2]'}`} relative rounded-lg overflow-hidden`}>
         {/* Low-quality placeholder */}
         <img 
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${
+          className={`absolute inset-0 w-full h-full object-cover rounded-lg transition-opacity duration-200 ${
             placeholderLoaded && !mainImageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           src={placeholderUrl}
@@ -102,7 +102,7 @@ const ImageSkeleton: React.FC<ImageSkeletonProps> = ({
         
         {/* Main image - High Quality */}
         <img 
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+          className={`absolute inset-0 w-full h-full object-cover rounded-lg transition-opacity duration-300 ${
             mainImageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           src={mainImageUrl}

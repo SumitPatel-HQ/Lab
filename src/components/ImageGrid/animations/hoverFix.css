@@ -1,14 +1,17 @@
-/* Optimized hover animation styles */
+/* Simple hover animation styles */
 .hover-animation-container {
   position: relative !important;
   z-index: 1 !important;
   /* CSS custom properties for performance */
-  --rotate-x: 0deg;
-  --rotate-y: 0deg;
   --scale: 1;
-  --transition-speed: 0.7s;
-  --perspective: 1000px;
+  --transition-speed: 1s;
   --shadow-color: rgba(0,0,0,0.2);
+  /* Hardware acceleration */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  /* Ensure scaled content is visible */
+  overflow: visible !important;
 }
 
 .hover-animation-container:hover {
@@ -18,42 +21,40 @@
 
 /* CSS-driven animations for better performance */
 .hover-card {
-  transform-style: preserve-3d;
-  transition: all calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   image-rendering: crisp-edges;
   -webkit-font-smoothing: antialiased;
-  backface-visibility: hidden;
+  -moz-osx-font-smoothing: grayscale;
   will-change: transform;
-  transform: perspective(var(--perspective)) 
-             rotateX(var(--rotate-x)) 
-             rotateY(var(--rotate-y)) 
-             translateY(0px) 
-             scale(var(--scale));
+  transform: scale(var(--scale));
+  transform-origin: center center;
+  /* Hardware acceleration */
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  /* Allow rounded corners to work properly */
+  overflow: hidden;
 }
 
 /* Enhanced hover state */
 .hover-card[data-hovering="true"] {
-  transform: perspective(var(--perspective)) 
-             rotateX(var(--rotate-x)) 
-             rotateY(var(--rotate-y)) 
-             translateY(-10px) 
-             scale(var(--scale));
-  box-shadow: 0 25px 50px -12px var(--shadow-color), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  transition: transform calc(var(--transition-speed) * 0.2) cubic-bezier(0.25, 0.46, 0.45, 0.94),
-              box-shadow calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform: scale(var(--scale));
+  box-shadow: 0 10px 25px -5px var(--shadow-color), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Smooth exit animation */
 .hover-card:not([data-hovering]) {
-  transition: transform var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* CSS-driven overlay animation */
 .hover-overlay {
   opacity: 0;
-  transition: opacity calc(var(--transition-speed) * 0.7) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .hover-card[data-hovering="true"] .hover-overlay {
@@ -63,8 +64,8 @@
 /* CSS-driven title animation */
 .hover-title-container {
   transform: translateY(100%);
-  transition: transform calc(var(--transition-speed) * 0.6) cubic-bezier(0.16, 1, 0.3, 1),
-              opacity calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+              opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .hover-card[data-hovering="true"] .hover-title-container {
@@ -73,7 +74,7 @@
 
 .hover-title-text {
   opacity: 0;
-  transition: opacity calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94) calc(var(--transition-speed) * 0.1);
+  transition: opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .hover-card[data-hovering="true"] .hover-title-text {
@@ -83,7 +84,30 @@
 /* Ensure grid items don't create stacking context issues */
 .image-grid-container > * {
   position: relative;
+  /* overflow: visible !important; */
 }
+
+/* Ensure grid containers don't clip scaled content */
+.grid {
+  overflow: visible !important;
+  /* Add padding to accommodate scaled content */
+  
+}
+
+/* Ensure masonry containers don't clip scaled content */
+.masonry-grid {
+  overflow: visible !important;
+  /* Add padding to accommodate scaled content */
+  
+}
+
+/* Ensure infinite scroll container doesn't clip */
+.infinite-scroll-component {
+  overflow: visible !important;
+  
+}
+
+
 
 /* Force z-index for hovered items to break out of any stacking context */
 .hover-animation-container:hover {

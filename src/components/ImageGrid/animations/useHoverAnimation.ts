@@ -3,10 +3,8 @@ import { getOptimizedImageUrl, createImageTransformations } from '../../../servi
 import { rafThrottle, createIntersectionObserver } from './animationUtils';
 
 export const HOVER_CONFIG = {
-  MAX_TILT: 2, // Reduced from 10 for less intense 3D effect
-  SCALE_FACTOR: 1.4,
-  TRANSITION_SPEED: 0.7,
-  PERSPECTIVE: 1000,
+  SCALE_FACTOR: 1.3,
+  TRANSITION_SPEED: 0.2,
   SHADOW_COLOR: 'rgba(0,0,0,0.5)',
   USE_HIGH_QUALITY: true,
 } as const;
@@ -53,48 +51,41 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
     }
   }, []);
 
-  // Optimized mouse move handler
-  const handleMouseMoveRaw = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // Simple hover handler - only scale
+  const handleMouseMoveRaw = useCallback(() => {
     if (!cardRef.current || !isVisible) return;
 
-    const rect = cardRectRef.current || cardRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    
-    // Calculate 3D transforms
-    const rotateX = (y - centerY) / centerY * -HOVER_CONFIG.MAX_TILT;
-    const rotateY = (x - centerX) / centerX * HOVER_CONFIG.MAX_TILT;
-
-    // Apply transforms using CSS custom properties
+    // Apply scale transform only
     const card = cardRef.current;
-    card.style.setProperty('--rotate-x', `${rotateX}deg`);
-    card.style.setProperty('--rotate-y', `${rotateY}deg`);
     card.style.setProperty('--scale', HOVER_CONFIG.SCALE_FACTOR.toString());
     card.setAttribute('data-hovering', 'true');
     
-    // Apply ultra-high-quality to images
+    // Apply high-quality to images
     if (imagesRef.current) {
       imagesRef.current.forEach(img => {
         img.style.imageRendering = 'high-quality';
-        img.style.filter = 'contrast(1.05) saturate(1.1) sharpen(0.2px)';
-        img.style.transform = 'translateZ(0)';
+        img.style.filter = 'contrast(1.05) saturate(1.1)';
       });
     }
   }, [isVisible]);
 
-  // Mouse enter handler
+  // Mouse enter handler - immediate response
   const handleMouseEnter = useCallback(() => {
     if (!cardRef.current) return;
     
-    const parentDiv = cardRef.current.parentElement;
+    // Immediately apply hover state
+    const card = cardRef.current;
+    card.style.setProperty('--scale', HOVER_CONFIG.SCALE_FACTOR.toString());
+    card.setAttribute('data-hovering', 'true');
+    
+    const parentDiv = card.parentElement;
     if (parentDiv) {
       parentDiv.style.setProperty('z-index', '99999', 'important');
       parentDiv.style.setProperty('position', 'relative', 'important');
       parentDiv.style.setProperty('isolation', 'isolate', 'important');
     }
   }, []);
+
 
   // Mouse leave handler
   const handleMouseLeave = useCallback(() => {
@@ -109,16 +100,13 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
     }
     
     // Reset transforms
-    cardRef.current.style.setProperty('--rotate-x', '0deg');
-    cardRef.current.style.setProperty('--rotate-y', '0deg');
     cardRef.current.style.setProperty('--scale', '1');
     cardRef.current.removeAttribute('data-hovering');
     
-    // Reset ultra-high-quality images
+    // Reset high-quality images
     if (imagesRef.current) {
       imagesRef.current.forEach(img => {
         img.style.filter = '';
-        img.style.transform = '';
         img.style.imageRendering = '';
       });
     }
