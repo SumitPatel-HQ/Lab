@@ -7,3 +7,6 @@ export { default as Card } from './Card';
 
 // Re-export base skeleton components
 export { Skeleton, ImageCardSkeleton } from '../ui/Skeleton';
+
+// Export card utilities for reuse
+export * from './CardUtils';

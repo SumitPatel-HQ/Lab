@@ -7,7 +7,6 @@ interface ControlsProps {
   onRandom: () => void;
   onOpenGrid: () => void;
   onLoadAll: () => void;
-  shuffleLoading: boolean;
   loading: boolean;
   currentIndex: number;
   visibleIndicators: number[];
@@ -19,7 +18,6 @@ const Controls: React.FC<ControlsProps> = React.memo(({
   onNext,
   onRandom,
   onOpenGrid,
-  shuffleLoading,
   currentIndex,
   visibleIndicators,
   onIndicatorClick
@@ -48,19 +46,10 @@ const Controls: React.FC<ControlsProps> = React.memo(({
         <div className="flex justify-center gap-4">
           <button 
             onClick={onRandom}
-            disabled={shuffleLoading}
-            className={`p-3 rounded-full ${
-              shuffleLoading 
-                ? 'bg-black/20 text-gray-400' 
-                : 'bg-black/30 hover:bg-black/50 text-white/80'
-            } backdrop-blur-xs transition-all duration-300 hover:scale-105 shadow-lg`}
+            className="p-3 rounded-full bg-black/30 hover:bg-black/50 text-white/80 backdrop-blur-xs transition-all duration-300 hover:scale-105 shadow-lg"
             aria-label="Random image"
           >
-            {shuffleLoading ? (
-              <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <Shuffle className="w-5 h-5" />
-            )}
+            <Shuffle className="w-5 h-5" />
           </button>
           
           <button 

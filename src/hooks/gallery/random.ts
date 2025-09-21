@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
-import { type ImageKitImage, IMAGEKIT_URL_ENDPOINT } from '../../services/ImageKit';
-import { useImageCache, type ImageRange } from './cache';
+import type { ImageKitImage } from '../../services/ImageKit';
+import { useImageCache } from './cache';
 import { GALLERY_CONFIG } from './config';
+import { extractImageNumber, getFallbackIndex, addImageToArray } from './randomUtils';
+import { createImageObject, testImageExistence, preloadImage } from './randomImageService';
 
 export interface UseRandomImageReturn {
   shuffleLoading: boolean;
@@ -14,166 +16,93 @@ export const useRandomImage = (
   const [shuffleLoading, setShuffleLoading] = useState(false);
   const { getCachedImageRange, cacheImageRange } = useImageCache();
 
-  const {
-    MAX_RANDOM_ATTEMPTS,
-    IMAGE_EXIST_TIMEOUT,
-    SHUFFLE_COMPLETE_DELAY,
-    DEFAULT_IMAGE_RATIO,
-    DEFAULT_IMAGE_WIDTH,
-    DEFAULT_IMAGE_HEIGHT,
-    DEFAULT_CATEGORY
-  } = GALLERY_CONFIG;
-
-  // True random shuffle - picks from entire collection without loading everything
   const randomImage = useCallback(async (
     images: ImageKitImage[], 
     currentIndex: number
-  ) => {
+  ): Promise<{ index: number; images: ImageKitImage[] } | undefined> => {
     if (shuffleLoading) return undefined;
     
     setShuffleLoading(true);
     
     try {
-      // Get the actual range of available images without loading them all
-      let imageRange: ImageRange | null = getCachedImageRange();
+      // Get or detect image range
+      let imageRange = getCachedImageRange();
       
-      if (imageRange) {
-        console.log(`💾 Using cached range: 1 to ${imageRange.max} (${imageRange.max} images)`);
-      } else {
+      if (!imageRange) {
         console.log('🔍 Detecting actual image range for true random shuffle...');
         const { findImageRange } = await import('../../services/ImageKit/discovery');
         imageRange = await findImageRange();
         cacheImageRange(imageRange);
         console.log(`📊 Found range: 1 to ${imageRange.max} (${imageRange.max} total images)`);
+      } else {
+        console.log(`💾 Using cached range: 1 to ${imageRange.max} (${imageRange.max} images)`);
       }
       
-      const totalAvailable = imageRange.max;
-      setTotalAvailableImages(totalAvailable);
+      setTotalAvailableImages(imageRange.max);
       
-      // Generate random image numbers until we find one that exists and is different from current
+      // Extract current image number and generate random
+      const currentImageNumber = images[currentIndex] ? extractImageNumber(images[currentIndex]) : null;
       let attempts = 0;
-      let newImageNumber;
-      let currentImageNumber = null;
+      let randomNumber;
       
-      // Try to extract current image number from current image
-      if (images[currentIndex]) {
-        const match = images[currentIndex].src.match(/(\d+)\.jpg$/);
-        if (match) {
-          currentImageNumber = parseInt(match[1]);
-        }
-      }
-      
-      // Find a random image that exists and is different from current
       do {
-        newImageNumber = Math.floor(Math.random() * totalAvailable) + 1;
+        randomNumber = Math.floor(Math.random() * imageRange.max) + 1;
         attempts++;
         
-        // Avoid infinite loop
-        if (attempts > MAX_RANDOM_ATTEMPTS) {
-          console.warn('Too many attempts, falling back to current images');
-          if (images.length > 1) {
-            const possibleIndices = [...Array(images.length).keys()].filter(i => i !== currentIndex);
-            const fallbackIndex = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
-            setShuffleLoading(false);
-            return { index: fallbackIndex, images };
-          }
+        if (attempts > GALLERY_CONFIG.MAX_RANDOM_ATTEMPTS) {
+          const fallbackIndex = getFallbackIndex(images, currentIndex);
           setShuffleLoading(false);
-          return undefined;
+          return fallbackIndex !== null ? { index: fallbackIndex, images } : undefined;
         }
-      } while (newImageNumber === currentImageNumber);
+      } while (randomNumber === currentImageNumber);
       
-      // Test if the random image exists
-      const { getImageKitPath, testImageExists } = await import('../../services/ImageKit/config');
-      const imagePath = getImageKitPath(newImageNumber);
+      // Test if image exists
+      const { getImageKitPath } = await import('../../services/ImageKit/config');
+      const imagePath = getImageKitPath(randomNumber);
       
-      console.log(`🎲 Testing random image #${newImageNumber}...`);
+      console.log(`🎲 Testing random image #${randomNumber}...`);
       
-      const imageExists = await Promise.race([
-        testImageExists(imagePath),
-        new Promise<boolean>(resolve => setTimeout(() => resolve(false), IMAGE_EXIST_TIMEOUT))
-      ]);
+      const imageExists = await testImageExistence(imagePath, GALLERY_CONFIG.IMAGE_EXIST_TIMEOUT);
       
       if (!imageExists) {
-        console.warn(`❌ Image #${newImageNumber} doesn't exist, trying another...`);
+        console.warn(`❌ Image #${randomNumber} doesn't exist, trying another...`);
         setShuffleLoading(false);
-        // Recursively try again
-        return randomImage(images, currentIndex);
+        return randomImage(images, currentIndex); // Retry
       }
       
-      // Create image object for the random image
-      const randomImageObj: ImageKitImage = {
-        id: newImageNumber.toString(),
-        title: `Image ${newImageNumber}`,
-        src: imagePath,
-        ratio: DEFAULT_IMAGE_RATIO,
-        category: DEFAULT_CATEGORY,
-        width: DEFAULT_IMAGE_WIDTH,
-        height: DEFAULT_IMAGE_HEIGHT
-      };
+      // Create and add image
+      console.log(`🔍 Getting metadata for random image: ${imagePath}`);
+      const randomImageObj = await createImageObject(randomNumber, imagePath);
+      const { images: updatedImages, index: newIndex } = addImageToArray(images, randomImageObj);
       
-      // Add to images array if not already present
-      let newIndex = images.findIndex(img => img.src === imagePath);
-      let updatedImages = images;
-      if (newIndex === -1) {
-        // Add the new image to our array
-        updatedImages = [...images, randomImageObj];
-        newIndex = updatedImages.length - 1;
-        console.log(`➕ Added new image #${newImageNumber} to collection`);
+      if (newIndex === updatedImages.length - 1) {
+        console.log(`➕ Added new image #${randomNumber} to collection`);
       }
       
-      // Preload the image
-      const imgLoader = new Image();
-      let hasUpdated = false;
-      
-      const onImageLoaded = () => {
-        if (!hasUpdated) {
-          hasUpdated = true;
-          setTimeout(() => setShuffleLoading(false), SHUFFLE_COMPLETE_DELAY);
+      // Handle loading completion
+      let hasCompleted = false;
+      const complete = () => {
+        if (!hasCompleted) {
+          hasCompleted = true;
+          setTimeout(() => setShuffleLoading(false), GALLERY_CONFIG.SHUFFLE_COMPLETE_DELAY);
         }
       };
       
-      setTimeout(() => {
-        if (!hasUpdated) {
-          hasUpdated = true;
-          setTimeout(() => setShuffleLoading(false), SHUFFLE_COMPLETE_DELAY);
-        }
-      }, SHUFFLE_COMPLETE_DELAY);
+      // Auto-complete and preload
+      setTimeout(complete, GALLERY_CONFIG.SHUFFLE_COMPLETE_DELAY);
+      preloadImage(imagePath, complete);
       
-      imgLoader.onload = onImageLoaded;
-      imgLoader.onerror = onImageLoaded;
-      imgLoader.src = `${IMAGEKIT_URL_ENDPOINT}${imagePath}`;
-      
-      console.log(`🎯 Shuffled to random image #${newImageNumber} (index ${newIndex}) from ${totalAvailable} total images`);
+      console.log(`🎯 Shuffled to random image #${randomNumber} (index ${newIndex}) from ${imageRange.max} total images`);
       return { index: newIndex, images: updatedImages };
       
     } catch (error) {
       console.error('Error in true random shuffle:', error);
       setShuffleLoading(false);
       
-      // Fallback to old method
-      if (images.length > 1) {
-        const possibleIndices = [...Array(images.length).keys()].filter(i => i !== currentIndex);
-        const fallbackIndex = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
-        return { index: fallbackIndex, images };
-      }
-      return undefined;
+      const fallbackIndex = getFallbackIndex(images, currentIndex);
+      return fallbackIndex !== null ? { index: fallbackIndex, images } : undefined;
     }
-  }, [
-    shuffleLoading, 
-    getCachedImageRange, 
-    cacheImageRange, 
-    setTotalAvailableImages,
-    MAX_RANDOM_ATTEMPTS,
-    IMAGE_EXIST_TIMEOUT,
-    SHUFFLE_COMPLETE_DELAY,
-    DEFAULT_IMAGE_RATIO,
-    DEFAULT_IMAGE_WIDTH,
-    DEFAULT_IMAGE_HEIGHT,
-    DEFAULT_CATEGORY
-  ]);
+  }, [shuffleLoading, getCachedImageRange, cacheImageRange, setTotalAvailableImages]);
 
-  return {
-    shuffleLoading,
-    randomImage
-  };
+  return { shuffleLoading, randomImage };
 };

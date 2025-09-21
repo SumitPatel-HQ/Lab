@@ -56,10 +56,10 @@ function Skeleton({
           <div
             key={index}
             className={cn(
-              "bg-gray-800/60 relative overflow-hidden",
+              "bg-gray-800/80 relative overflow-hidden",
               variantClasses[variant],
               animationClasses[animation],
-              shimmer && "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-indigo-400/10 before:to-transparent"
+              shimmer && "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
             )}
             style={style}
           />
@@ -71,10 +71,10 @@ function Skeleton({
   return (
     <div
       className={cn(
-        "bg-gray-800/60 relative overflow-hidden",
+        "bg-gray-800/80 relative overflow-hidden",
         variantClasses[variant],
         animationClasses[animation],
-        shimmer && "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-indigo-400/10 before:to-transparent",
+        shimmer && "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent",
         className
       )}
       style={style}

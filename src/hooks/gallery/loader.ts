@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   getAllImages, 
   getAllImagesWithRangeDetection, 
@@ -25,7 +25,15 @@ export const useImageLoader = (): UseImageLoaderReturn => {
   const [totalAvailableImages, setTotalAvailableImages] = useState<number>(0);
   
   const imagesLoaded = useRef(false);
-  const { getCachedImages, cacheImages, getCachedImageRange } = useImageCache();
+  const { getCachedImages, cacheImages, getCachedImageRange, clearImageCache } = useImageCache();
+  
+  // Force clear cache to debug aspect ratio issue
+  useEffect(() => {
+    console.log('🧹 DEBUG: Force clearing cache to test aspect ratio detection...');
+    clearImageCache();
+    // Also clear the fix flag to see fresh detection
+    sessionStorage.removeItem('aspect-ratio-fix-applied');
+  }, [clearImageCache]);
 
   const {
     INITIAL_BATCH_SIZE,

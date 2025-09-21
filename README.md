@@ -1,9 +1,13 @@
 next problems ⚠️
 front end part
 
-remove useless comments and console logs
+
 proper hovering animation on images
+remove useless comments and console logs
 mobile frontend config -> main and big
+-> geuture navigation in hook folder
+-> Proper Modal container when clicked on image
+-> 
 
 
 solved problems ✅
@@ -21,6 +25,7 @@ removed scroll bar and add scroll up button✅
 proper loading animation -> lightwind skeleton✅
 navbar fixed ✅
 liquid glass type effect ✅
+some images appear 3:2 instead of 2:3✅
 
 New feature
 use barba js

@@ -8,7 +8,7 @@ import Header from './Header';
 import ImageCard from './ImageCard';
 import { useImageGrid } from './useImageGrid';
 import { useModal } from './useModal';
-import { useSliderControl } from './useSliderControl';
+import { useSliderControl } from './slider';
 import { getGridClass, getGapClass } from './utils';
 
 interface ImageGridProps {
@@ -70,11 +70,7 @@ const ImageGrid: React.FC<ImageGridProps> = ({ images, onClose }) => {
                 />
               </div>
             }
-            endMessage={
-              <div className="text-center text-gray-400 py-8">
-                <p>You've seen all {visibleImages.length} images!</p>
-              </div>
-            }
+            
           >
             <div 
               className={`${

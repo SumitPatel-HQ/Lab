@@ -3,13 +3,21 @@ import type { ImageKitImage, ImageMetadata, BatchResult } from './types';
 import { CONFIG, IMAGEKIT_URL_ENDPOINT, getImageKitPath, testImageExists } from './config';
 import { isImageLoaded, preloadImageKit } from './cache';
 
-// Enhanced image metadata extraction
+// Enhanced image metadata extraction using ImageKit's metadata endpoint
 export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const ratio = img.width / img.height;
-      const aspectRatio = ratio > 1 ? '3:2' : '2:3';
+      // Improved aspect ratio detection with cleaner logic
+      // 3:2 = 1.5, 2:3 = 0.67, so use 1.0 as the clear threshold
+      const aspectRatio = ratio >= 1.5 ? '3:2' : '2:3';
+      
+      console.log(`🔍 DETECTION - Image ${imagePath}:`);
+      console.log(`   📐 Dimensions: ${img.width}x${img.height}`);
+      console.log(`   📊 Calculated ratio: ${ratio.toFixed(3)} (${img.width}/${img.height})`);
+      console.log(`   🎯 Detected as: ${aspectRatio}`);
+      console.log(`   🔗 Image URL: ${img.src}`);
       
       const filename = imagePath.split('/').pop()?.replace('.jpg', '').replace('.jpeg', '').replace('.png', '') || 'Unknown';
       
@@ -18,11 +26,16 @@ export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata
         ratio: aspectRatio
       });
     };
-    img.onerror = () => resolve({
-      title: 'Unknown Image',
-      ratio: '2:3'
-    });
-    img.src = `${IMAGEKIT_URL_ENDPOINT}${imagePath}`;
+    img.onerror = () => {
+      console.warn(`❌ Failed to load metadata for ${imagePath}`);
+      resolve({
+        title: 'Unknown Image',
+        ratio: '2:3'
+      });
+    };
+    // Load image with basic transformation to ensure it loads properly
+    img.src = `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto`;
+    console.log(`🔗 Attempting to load: ${img.src}`);
   });
 };
 
@@ -45,7 +58,7 @@ export const discoverAvailableImages = async (limit: number = 10): Promise<Image
         const metadata = await getImageMetadata(imagePath);
         images.push({
           id: `image-${imageNumber}`,
-          title: imageNumber.toString(),
+          title: 'ImaginaLab',
           src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-95,f-auto`,
           ratio: metadata.ratio,
           category: 'Imaginalab AI',
@@ -91,7 +104,7 @@ export const getAllImagesInRange = async (startNum: number, endNum: number): Pro
             const metadata = await getImageMetadata(imagePath);
             return {
               id: `image-${imageNumber}`,
-              title: imageNumber.toString(),
+              title: 'ImaginaLab',
               src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-95,f-auto`,
               ratio: metadata.ratio,
               category: 'Imaginalab AI',
@@ -142,11 +155,12 @@ export const discoverImagesProgressively = async (startIndex: number, count: num
           ]);
           
           if (exists) {
+            const metadata = await getImageMetadata(imagePath);
             return {
               id: `image-${imageNumber}`,
-              title: imageNumber.toString(),
+              title: 'ImaginaLab',
               src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto,w-400`,
-              ratio: '2:3',
+              ratio: metadata.ratio,
               category: 'Imaginalab AI',
               loaded: false
             };
@@ -176,12 +190,13 @@ export const getPreloadedImage = async (index: number): Promise<ImageKitImage | 
   
   const fullImageUrl = `${IMAGEKIT_URL_ENDPOINT}${imagePath}`;
   await preloadImageKit(imagePath);
+  const metadata = await getImageMetadata(imagePath);
   
   return {
     id: `image-${imageNumber}`,
-    title: imageNumber.toString(),
+    title: 'ImaginaLab',
     src: `${fullImageUrl}?tr=q-80,f-auto`,
-    ratio: '2:3',
+    ratio: metadata.ratio,
     category: 'Imaginalab AI',
     loaded: true
   };
@@ -196,11 +211,12 @@ export const getImageById = async (id: string): Promise<ImageKitImage | undefine
   const exists = await testImageExists(imagePath);
   
   if (exists) {
+    const metadata = await getImageMetadata(imagePath);
     return {
       id,
-      title: imageNumber.toString(),
+      title: 'ImaginaLab',
       src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto`,
-      ratio: '2:3',
+      ratio: metadata.ratio,
       category: 'Imaginalab AI',
       loaded: isImageLoaded(imagePath)
     };

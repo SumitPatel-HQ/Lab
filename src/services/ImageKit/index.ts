@@ -7,11 +7,15 @@ import {
   discoverImagesProgressively,
   getImageById,
   getImageWithRatio,
-  getPreloadedImage
+  getPreloadedImage,
+  getImageMetadata
 } from './loader';
 
 // Re-export cache functions
 export { preloadImageKit, markImageLoaded, isImageLoaded, resetImageCache } from './cache';
+
+// Re-export loader functions
+export { getImageMetadata } from './loader';
 
 // Re-export types
 export type { ImageKitImage } from './types';
