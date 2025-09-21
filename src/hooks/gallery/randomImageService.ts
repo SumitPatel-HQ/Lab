@@ -1,4 +1,5 @@
-import { type ImageKitImage, IMAGEKIT_URL_ENDPOINT, getImageMetadata } from '../../services/ImageKit';
+import { type ImageKitImage, IMAGEKIT_URL_ENDPOINT } from '../../services/ImageKit';
+import { getImageMetadata } from '../../services/ImageKit/loader';
 import { GALLERY_CONFIG } from './config';
 
 const { DEFAULT_IMAGE_WIDTH, DEFAULT_IMAGE_HEIGHT, DEFAULT_CATEGORY } = GALLERY_CONFIG;

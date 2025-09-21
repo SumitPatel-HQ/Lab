@@ -1,9 +1,9 @@
 // Image loading and metadata management
 import type { ImageKitImage, ImageMetadata, BatchResult } from './types';
-import { CONFIG, IMAGEKIT_URL_ENDPOINT, getImageKitPath, testImageExists } from './config';
+import { CONFIG, IMAGEKIT_URL_ENDPOINT, getImageKitPath, testImageExists, createImageTransformations, getOptimizedImageUrl, getDeviceType, getOptimalQuality } from './config';
 import { isImageLoaded, preloadImageKit } from './cache';
 
-// Enhanced image metadata extraction using ImageKit's metadata endpoint
+// Enhanced image metadata extraction using optimized thumbnail
 export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -12,12 +12,6 @@ export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata
       // Improved aspect ratio detection with cleaner logic
       // 3:2 = 1.5, 2:3 = 0.67, so use 1.0 as the clear threshold
       const aspectRatio = ratio >= 1.5 ? '3:2' : '2:3';
-      
-      console.log(`🔍 DETECTION - Image ${imagePath}:`);
-      console.log(`   📐 Dimensions: ${img.width}x${img.height}`);
-      console.log(`   📊 Calculated ratio: ${ratio.toFixed(3)} (${img.width}/${img.height})`);
-      console.log(`   🎯 Detected as: ${aspectRatio}`);
-      console.log(`   🔗 Image URL: ${img.src}`);
       
       const filename = imagePath.split('/').pop()?.replace('.jpg', '').replace('.jpeg', '').replace('.png', '') || 'Unknown';
       
@@ -33,9 +27,8 @@ export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata
         ratio: '2:3'
       });
     };
-    // Load image with basic transformation to ensure it loads properly
-    img.src = `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto`;
-    console.log(`🔗 Attempting to load: ${img.src}`);
+    // Use ultra-fast tiny image for metadata detection
+    img.src = getOptimizedImageUrl(imagePath, createImageTransformations.placeholder(30));
   });
 };
 
@@ -56,10 +49,11 @@ export const discoverAvailableImages = async (limit: number = 10): Promise<Image
       
       if (exists) {
         const metadata = await getImageMetadata(imagePath);
+        const deviceType = getDeviceType();
         images.push({
           id: `image-${imageNumber}`,
           title: 'ImaginaLab',
-          src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-95,f-auto`,
+          src: getOptimizedImageUrl(imagePath, getOptimalQuality('thumbnail', deviceType)),
           ratio: metadata.ratio,
           category: 'Imaginalab AI',
           loaded: false
@@ -102,10 +96,11 @@ export const getAllImagesInRange = async (startNum: number, endNum: number): Pro
           
           if (exists) {
             const metadata = await getImageMetadata(imagePath);
+            const deviceType = getDeviceType();
             return {
               id: `image-${imageNumber}`,
               title: 'ImaginaLab',
-              src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-95,f-auto`,
+              src: getOptimizedImageUrl(imagePath, getOptimalQuality('thumbnail', deviceType)),
               ratio: metadata.ratio,
               category: 'Imaginalab AI',
               loaded: false
@@ -159,7 +154,7 @@ export const discoverImagesProgressively = async (startIndex: number, count: num
             return {
               id: `image-${imageNumber}`,
               title: 'ImaginaLab',
-              src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto,w-400`,
+              src: getOptimizedImageUrl(imagePath, createImageTransformations.thumbnail(400)),
               ratio: metadata.ratio,
               category: 'Imaginalab AI',
               loaded: false
@@ -195,7 +190,7 @@ export const getPreloadedImage = async (index: number): Promise<ImageKitImage | 
   return {
     id: `image-${imageNumber}`,
     title: 'ImaginaLab',
-    src: `${fullImageUrl}?tr=q-80,f-auto`,
+    src: getOptimizedImageUrl(fullImageUrl.replace(IMAGEKIT_URL_ENDPOINT, ''), createImageTransformations.preview(800)),
     ratio: metadata.ratio,
     category: 'Imaginalab AI',
     loaded: true
@@ -215,7 +210,7 @@ export const getImageById = async (id: string): Promise<ImageKitImage | undefine
     return {
       id,
       title: 'ImaginaLab',
-      src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto`,
+      src: getOptimizedImageUrl(imagePath, createImageTransformations.preview(600)),
       ratio: metadata.ratio,
       category: 'Imaginalab AI',
       loaded: isImageLoaded(imagePath)
@@ -233,7 +228,7 @@ export const getImageWithRatio = async (imagePath: string): Promise<ImageKitImag
   return {
     id: `image-${imageNumber}`,
     title: metadata.title,
-    src: `${IMAGEKIT_URL_ENDPOINT}${imagePath}?tr=q-80,f-auto`,
+    src: getOptimizedImageUrl(imagePath, createImageTransformations.preview(700)),
     ratio: metadata.ratio,
     category: 'Imaginalab AI',
     loaded: isImageLoaded(imagePath) || false

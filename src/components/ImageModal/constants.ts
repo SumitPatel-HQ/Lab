@@ -1,4 +1,4 @@
-import { IMAGEKIT_URL_ENDPOINT } from '../../services/ImageKit';
+import { IMAGEKIT_URL_ENDPOINT, createImageTransformations, getOptimizedImageUrl } from '../../services/ImageKit/config';
 
 // Modal configuration
 export const MODAL_CONFIG = {
@@ -40,34 +40,33 @@ export const MODAL_CONFIG = {
   }
 } as const;
 
-// Helper function to get full ImageKit URL
+// Helper function to get optimized modal image URL with adaptive quality
 export const getImageKitUrl = (src: string): string => {
   if (src.startsWith('http')) {
-    return src;
+    // Extract the path from the URL
+    const imagePath = src.split('?')[0].replace(IMAGEKIT_URL_ENDPOINT, '');
+    // Use ultra-high quality for modal images
+    return getOptimizedImageUrl(imagePath, createImageTransformations.ultra(1600));
   }
-  return `${IMAGEKIT_URL_ENDPOINT}${src}`;
+  return getOptimizedImageUrl(src, createImageTransformations.ultra(1600));
 };
 
 // Helper function to generate low-quality placeholder URL
 export const getPlaceholderUrl = (src: string): string => {
-  const fullUrl = getImageKitUrl(src);
-  if (fullUrl.includes('?')) {
-    return `${fullUrl}&w=20&q=10&blur=10`;
-  } else {
-    return `${fullUrl}?w=20&q=10&blur=10`;
-  }
+  const imagePath = src.split('?')[0].replace(IMAGEKIT_URL_ENDPOINT, '');
+  return getOptimizedImageUrl(imagePath, createImageTransformations.placeholder(20));
 };
 
-// Helper function to generate responsive image URLs
+// Helper function to generate high-quality responsive image URLs with WebP
 export const getResponsiveSrcSet = (src: string): string => {
-  const fullUrl = getImageKitUrl(src);
-  const baseUrl = fullUrl.split('?')[0];
+  const imagePath = src.split('?')[0].replace(IMAGEKIT_URL_ENDPOINT, '');
   
   return `
-    ${baseUrl}?w=640&q=75 640w,
-    ${baseUrl}?w=960&q=75 960w,
-    ${baseUrl}?w=1280&q=80 1280w,
-    ${baseUrl}?w=1920&q=80 1920w
+    ${getOptimizedImageUrl(imagePath, 'tr=q-85,f-webp,w-640')} 640w,
+    ${getOptimizedImageUrl(imagePath, 'tr=q-88,f-webp,w-960')} 960w,
+    ${getOptimizedImageUrl(imagePath, 'tr=q-90,f-webp,w-1280')} 1280w,
+    ${getOptimizedImageUrl(imagePath, 'tr=q-93,f-webp,w-1920')} 1920w,
+    ${getOptimizedImageUrl(imagePath, 'tr=q-95,f-webp,w-2560')} 2560w
   `.trim();
 };
 

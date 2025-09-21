@@ -4,17 +4,17 @@
  */
 
 export const GALLERY_CONFIG = {
-  // Image loading configuration
-  PRELOAD_COUNT: 3,
-  INITIAL_BATCH_SIZE: 5,
-  SECOND_BATCH_SIZE: 25,
-  FINAL_BATCH_SIZE: 100,
+  // Image loading configuration - optimized for faster loading
+  PRELOAD_COUNT: 2, // Reduced for faster initial load
+  INITIAL_BATCH_SIZE: 3, // Smaller initial batch for ultra-fast startup
+  SECOND_BATCH_SIZE: 12, // Reduced batch size
+  FINAL_BATCH_SIZE: 50, // Reduced final batch
   
-  // Timing configuration (in milliseconds)
-  SECOND_BATCH_DELAY: 1000,
-  FINAL_BATCH_DELAY: 3000,
-  PRELOAD_DELAY: 200,
-  SHUFFLE_COMPLETE_DELAY: 100,
+  // Timing configuration (in milliseconds) - more aggressive loading
+  SECOND_BATCH_DELAY: 500, // Faster second batch
+  FINAL_BATCH_DELAY: 1500, // Faster final batch
+  PRELOAD_DELAY: 100, // Faster preloading
+  SHUFFLE_COMPLETE_DELAY: 50, // Faster shuffle
   
   // Cache configuration
   CACHE_EXPIRY_TIME: 5 * 60 * 1000, // 5 minutes

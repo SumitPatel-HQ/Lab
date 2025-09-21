@@ -7,7 +7,7 @@ remove useless comments and console logs
 mobile frontend config -> main and big
 -> geuture navigation in hook folder
 -> Proper Modal container when clicked on image
--> test
+
 
 
 solved problems ✅
@@ -26,6 +26,8 @@ proper loading animation -> lightwind skeleton✅
 navbar fixed ✅
 liquid glass type effect ✅
 some images appear 3:2 instead of 2:3✅
+loading time is long✅
+image quality -> 100%✅
 
 New feature
 use barba js

@@ -50,16 +50,6 @@ export const LoadingState: React.FC = () => (
           ))}
         </div>
       </div>
-
-      {/* Loading text */}
-      <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-50">
-        <div className="text-center bg-black/20 backdrop-blur-sm px-6 py-3 rounded-full">
-          <div className="flex items-center gap-3">
-            <div className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-white/80 text-sm font-medium">Discovering available images...</p>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 );
