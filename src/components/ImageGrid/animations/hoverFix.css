@@ -1,12 +1,83 @@
-/* Hover animation z-index fix */
+/* Optimized hover animation styles */
 .hover-animation-container {
   position: relative !important;
   z-index: 1 !important;
+  /* CSS custom properties for performance */
+  --rotate-x: 0deg;
+  --rotate-y: 0deg;
+  --scale: 1;
+  --transition-speed: 0.7s;
+  --perspective: 1000px;
+  --shadow-color: rgba(0,0,0,0.2);
 }
 
 .hover-animation-container:hover {
   z-index: 99999 !important;
   isolation: isolate !important;
+}
+
+/* CSS-driven animations for better performance */
+.hover-card {
+  transform-style: preserve-3d;
+  transition: all calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  image-rendering: crisp-edges;
+  -webkit-font-smoothing: antialiased;
+  backface-visibility: hidden;
+  will-change: transform;
+  transform: perspective(var(--perspective)) 
+             rotateX(var(--rotate-x)) 
+             rotateY(var(--rotate-y)) 
+             translateY(0px) 
+             scale(var(--scale));
+}
+
+/* Enhanced hover state */
+.hover-card[data-hovering="true"] {
+  transform: perspective(var(--perspective)) 
+             rotateX(var(--rotate-x)) 
+             rotateY(var(--rotate-y)) 
+             translateY(-10px) 
+             scale(var(--scale));
+  box-shadow: 0 25px 50px -12px var(--shadow-color), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transition: transform calc(var(--transition-speed) * 0.2) cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              box-shadow calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Smooth exit animation */
+.hover-card:not([data-hovering]) {
+  transition: transform var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* CSS-driven overlay animation */
+.hover-overlay {
+  opacity: 0;
+  transition: opacity calc(var(--transition-speed) * 0.7) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.hover-card[data-hovering="true"] .hover-overlay {
+  opacity: 1;
+}
+
+/* CSS-driven title animation */
+.hover-title-container {
+  transform: translateY(100%);
+  transition: transform calc(var(--transition-speed) * 0.6) cubic-bezier(0.16, 1, 0.3, 1),
+              opacity calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.hover-card[data-hovering="true"] .hover-title-container {
+  transform: translateY(0);
+}
+
+.hover-title-text {
+  opacity: 0;
+  transition: opacity calc(var(--transition-speed) * 0.4) cubic-bezier(0.25, 0.46, 0.45, 0.94) calc(var(--transition-speed) * 0.1);
+}
+
+.hover-card[data-hovering="true"] .hover-title-text {
+  opacity: 1;
 }
 
 /* Ensure grid items don't create stacking context issues */
@@ -16,5 +87,67 @@
 
 /* Force z-index for hovered items to break out of any stacking context */
 .hover-animation-container:hover {
+  transform: translateZ(0) !important;
+}
+
+/* Image quality improvements for scaling */
+.hover-animation-container img {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* High-quality scaling for hovered images */
+.hover-animation-container:hover img {
+  image-rendering: high-quality;
+  image-rendering: -webkit-optimize-contrast;
+  filter: contrast(1.05) saturate(1.1) sharpen(0.1);
+  transform: translateZ(0) scale(var(--hover-scale, 1));
+}
+
+/* Parallax background quality improvements */
+.react-parallax-bgimage {
+  image-rendering: high-quality !important;
+  image-rendering: -webkit-optimize-contrast !important;
+  filter: contrast(1.05) saturate(1.1) !important;
+  transform: translateZ(0) !important;
+  backface-visibility: hidden !important;
+}
+
+/* Prevent blurry scaling */
+.hover-animation-container * {
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Ultra high-quality image rendering for hover state */
+.hover-animation-container:hover .react-parallax-bgimage {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+  -ms-interpolation-mode: bicubic !important;
+  filter: contrast(1.02) saturate(1.02) !important;
+  transform: translateZ(0) !important;
+}
+
+/* Force sub-pixel rendering for sharp edges */
+.hover-animation-container:hover {
+  -webkit-font-smoothing: subpixel-antialiased !important;
+  -moz-osx-font-smoothing: auto !important;
+}
+
+/* Ensure all child images maintain quality during scaling */
+.hover-animation-container:hover img,
+.hover-animation-container:hover picture,
+.hover-animation-container:hover source {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: crisp-edges !important;
+  -ms-interpolation-mode: bicubic !important;
   transform: translateZ(0) !important;
 }

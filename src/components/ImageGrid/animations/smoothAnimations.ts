@@ -2,13 +2,8 @@
 // This file documents all the smooth animations implemented in HoverAnimation.tsx
 // All animations now use HOVER_CONFIG for consistent timing and behavior
 
-export const HOVER_CONFIG = {
-  MAX_TILT: 10, // Maximum rotation in degrees
-  SCALE_FACTOR: 1.7, // How much to scale up on hover
-  TRANSITION_SPEED: 0.7, // Base transition speed in seconds
-  PERSPECTIVE: 1000, // Perspective value for 3D effect
-  SHADOW_COLOR: 'rgba(0,0,0,0.2)', // Shadow color
-} as const;
+// Configuration moved to useHoverAnimation.ts to avoid conflicts
+// Use: import { HOVER_CONFIG } from './useHoverAnimation';
 
 export const SMOOTH_ANIMATIONS = {
   // Primary card transform animations (all based on HOVER_CONFIG.TRANSITION_SPEED)

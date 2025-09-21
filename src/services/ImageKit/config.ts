@@ -40,7 +40,7 @@ export const createImageTransformations = {
   },
   
   // New: Ultra-high quality for special cases (hero images, featured content)
-  ultra: (width = 1600) => `tr=q-98,f-webp,w-${width}`,
+  ultra: (width = 1600) => `tr=q-100,f-auto,w-${width},dpr-2.0,c-maintain_ratio`,
   
   // New: Retina/high-DPI optimized versions
   retina: (deviceType: 'mobile' | 'tablet' | 'desktop') => {

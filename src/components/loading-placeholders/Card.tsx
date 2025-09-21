@@ -80,7 +80,7 @@ const Card: React.FC<CardProps> = React.memo(({
           transformation={IMAGE_TRANSFORMATIONS.placeholder}
         />
 
-        {/* Main image */}
+        {/* Main image - Ultra High Quality */}
         <IKImage
           urlEndpoint={IMAGEKIT_URL_ENDPOINT}
           src={image.src}
@@ -89,6 +89,13 @@ const Card: React.FC<CardProps> = React.memo(({
           className={`${RESPONSIVE_SIZES} ${aspectRatioClass} object-cover transition-opacity duration-500 ${
             loaded ? 'opacity-100' : 'opacity-0'
           } ${showSkeleton ? 'invisible' : 'visible'}`}
+          style={{
+            imageRendering: 'high-quality',
+            WebkitFontSmoothing: 'antialiased',
+            backfaceVisibility: 'hidden',
+            transform: 'translateZ(0)', // Hardware acceleration
+            filter: 'contrast(1.02) saturate(1.02)', // Slight enhancement
+          }}
           onLoad={handleMainImageLoad}
           transformation={IMAGE_TRANSFORMATIONS.main}
         />

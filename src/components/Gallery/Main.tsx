@@ -3,7 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Card } from '../loading-placeholders';
 import ImageModal from '../ImageModal';
 import Controls from './Controls';
-import { getOptimizedImageSrc } from '../../hooks/useUtils';
+import { getUltraHighQualityImageSrc } from '../../hooks/useUtils';
 import type { ImageKitImage } from '../../services/ImageKit';
 
 interface MainGalleryViewProps {
@@ -95,7 +95,7 @@ export const MainGalleryView: React.FC<MainGalleryViewProps> = ({
                 <Card
                   image={{
                     ...image,
-                    src: getOptimizedImageSrc(image.src, isMobile)
+                    src: getUltraHighQualityImageSrc(image.src) // Ultra-high quality for main gallery
                   }}
                   index={index}
                   activeIndex={currentIndex}

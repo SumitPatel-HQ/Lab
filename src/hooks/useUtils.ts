@@ -43,14 +43,25 @@ export const useScreenWidth = () => {
   return screenWidth;
 };
 
-// Image optimization utility
+// High-quality image optimization utility
 export const getOptimizedImageSrc = (originalSrc: string, isMobile: boolean) => {
+  // Always return high quality for gallery main view
   if (!isMobile) return originalSrc;
   
+  // For mobile, use high quality but reasonable size
   if (originalSrc.includes('?')) {
-    return `${originalSrc}&tr=q-70,w-800`;
+    return `${originalSrc}&tr=q-90,w-1200`; // High quality: q-90, larger width: 1200px
   } else {
-    return `${originalSrc}?tr=q-70,w-800`;
+    return `${originalSrc}?tr=q-90,w-1200`;
+  }
+};
+
+// Ultra high-quality version for main gallery view
+export const getUltraHighQualityImageSrc = (originalSrc: string) => {
+  if (originalSrc.includes('?')) {
+    return `${originalSrc}&tr=q-100,w-2400`; // Ultra quality: q-100, full width: 2400px
+  } else {
+    return `${originalSrc}?tr=q-100,w-2400`;
   }
 };
 

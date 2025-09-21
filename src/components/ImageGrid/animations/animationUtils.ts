@@ -37,6 +37,7 @@ export const calculateRotation = (
   return { rotateX, rotateY };
 };
 
+// High-performance throttle for mousemove events
 export const throttle = <T extends (...args: unknown[]) => void>(
   func: T,
   delay: number
@@ -57,6 +58,22 @@ export const throttle = <T extends (...args: unknown[]) => void>(
         lastExecTime = Date.now();
       }, delay);
     }
+  };
+};
+
+// RAF-based throttle for smoother animations
+export const rafThrottle = <T extends (...args: unknown[]) => void>(
+  func: T
+): ((...args: Parameters<T>) => void) => {
+  let rafId: number | null = null;
+  
+  return (...args: Parameters<T>) => {
+    if (rafId) return;
+    
+    rafId = requestAnimationFrame(() => {
+      func(...args);
+      rafId = null;
+    });
   };
 };
 

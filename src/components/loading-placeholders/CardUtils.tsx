@@ -60,8 +60,9 @@ export const IMAGE_TRANSFORMATIONS = {
     format: "auto" as const
   }],
   main: [{
-    quality: 90,
+    quality: 100, // Ultra-high quality for main gallery images
     format: "auto" as const,
-    progressive: true
+    progressive: true,
+    dpr: 2 // High DPI support for crisp images
   }]
 };

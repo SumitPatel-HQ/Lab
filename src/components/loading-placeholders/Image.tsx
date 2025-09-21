@@ -8,7 +8,7 @@ interface ImageSkeletonProps {
   className?: string;
   onImageLoad?: () => void;
   aspectRatio?: '2:3' | '3:2';
-  quality?: 'thumbnail' | 'preview' | 'full'; // Quality level
+  quality?: 'thumbnail' | 'preview' | 'full' | 'ultra'; // Quality level
   fetchPriority?: 'high' | 'low' | 'auto'; // Browser fetch priority
   loading?: 'eager' | 'lazy'; // Loading behavior
 }
@@ -44,6 +44,9 @@ const ImageSkeleton: React.FC<ImageSkeletonProps> = ({
       case 'full':
         // Use smart quality selection for full size
         return getOptimizedImageUrl(imagePath, getOptimalQuality('fullSize', deviceType));
+      case 'ultra':
+        // Ultra-high quality for main gallery view (2400px, q-100)
+        return getOptimizedImageUrl(imagePath, createImageTransformations.ultra(2400));
       default:
         // Default to responsive high quality
         return getOptimizedImageUrl(imagePath, createImageTransformations.responsive(deviceType));
@@ -97,7 +100,7 @@ const ImageSkeleton: React.FC<ImageSkeletonProps> = ({
           style={{ filter: 'blur(10px)' }}
         />
         
-        {/* Main image */}
+        {/* Main image - High Quality */}
         <img 
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
             mainImageLoaded ? 'opacity-100' : 'opacity-0'
@@ -108,6 +111,13 @@ const ImageSkeleton: React.FC<ImageSkeletonProps> = ({
           fetchPriority={fetchPriority}
           onLoad={handleMainImageLoad}
           onError={handleImageError}
+          style={{
+            imageRendering: 'crisp-edges' as const,
+            WebkitFontSmoothing: 'antialiased',
+            backfaceVisibility: 'hidden',
+            transform: 'translateZ(0)', // Hardware acceleration
+            filter: 'contrast(1.01) saturate(1.01)', // Subtle enhancement
+          } as React.CSSProperties}
         />
       </div>
     </div>

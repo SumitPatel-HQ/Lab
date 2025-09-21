@@ -20,8 +20,9 @@ const ImageCard: React.FC<ImageCardProps> = ({ image, layoutMode, onImageClick }
       <ImageSkeleton 
         image={image}
         aspectRatio={image.ratio as '2:3' | '3:2'}
-        quality="preview"
+        quality="full"
         className={layoutMode === 'masonry' ? 'w-full' : ''}
+        fetchPriority="high"
       />
     </HoverAnimation>
   );
