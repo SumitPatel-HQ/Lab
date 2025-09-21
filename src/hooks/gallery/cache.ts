@@ -25,10 +25,26 @@ export const useImageCache = () => {
       const cachedImages = sessionStorage.getItem(CACHE_KEYS.IMAGES);
       const cacheTimestamp = sessionStorage.getItem(CACHE_KEYS.TIMESTAMP);
       
-      if (!cachedImages || !cacheTimestamp) return null;
+      console.log('🗄️ Cache retrieval:', {
+        hasCachedImages: !!cachedImages,
+        hasCacheTimestamp: !!cacheTimestamp,
+        cacheLength: cachedImages ? JSON.parse(cachedImages).length : 0
+      });
+      
+      if (!cachedImages || !cacheTimestamp) {
+        console.log('❌ Cache miss: missing images or timestamp');
+        return null;
+      }
       
       const cacheAge = Date.now() - parseInt(cacheTimestamp);
+      console.log('⏰ Cache age check:', {
+        cacheAge: Math.round(cacheAge / 1000) + 's',
+        expiryTime: Math.round(CACHE_EXPIRY_TIME / 1000) + 's',
+        isExpired: cacheAge >= CACHE_EXPIRY_TIME
+      });
+      
       if (cacheAge >= CACHE_EXPIRY_TIME) {
+        console.log('🧹 Cache expired, clearing...');
         clearImageCache();
         return null;
       }
@@ -46,6 +62,10 @@ export const useImageCache = () => {
     try {
       sessionStorage.setItem(CACHE_KEYS.IMAGES, JSON.stringify(images));
       sessionStorage.setItem(CACHE_KEYS.TIMESTAMP, Date.now().toString());
+      console.log('💾 Cached images:', {
+        count: images.length,
+        timestamp: new Date().toLocaleTimeString()
+      });
     } catch (error) {
       console.warn('Error caching images:', error);
     }

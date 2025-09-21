@@ -25,15 +25,18 @@ export const useImageLoader = (): UseImageLoaderReturn => {
   const [totalAvailableImages, setTotalAvailableImages] = useState<number>(0);
   
   const imagesLoaded = useRef(false);
-  const { getCachedImages, cacheImages, getCachedImageRange, clearImageCache } = useImageCache();
-  
-  // Force clear cache to debug aspect ratio issue
+  const { getCachedImages, cacheImages, getCachedImageRange } = useImageCache();
+
+  // Initialize images from cache immediately to prevent loading flash
   useEffect(() => {
-    console.log('🧹 DEBUG: Force clearing cache to test aspect ratio detection...');
-    clearImageCache();
-    // Also clear the fix flag to see fresh detection
-    sessionStorage.removeItem('aspect-ratio-fix-applied');
-  }, [clearImageCache]);
+    const cachedImages = getCachedImages();
+    if (cachedImages && cachedImages.length > 0) {
+      setImages(cachedImages);
+      setLoading(false);
+      imagesLoaded.current = true;
+      console.log(`🚀 Early cache restore: ${cachedImages.length} images`);
+    }
+  }, [getCachedImages]);
 
   const {
     INITIAL_BATCH_SIZE,
@@ -46,10 +49,22 @@ export const useImageLoader = (): UseImageLoaderReturn => {
   // Load images with progressive batching
   const loadImages = useCallback(async () => {
     try {
+      // If images are already loaded from cache, don't reload
+      if (imagesLoaded.current && images.length > 0) {
+        console.log('✅ Images already loaded from cache, skipping...');
+        return;
+      }
+      
       setLoading(true);
       
-      // Check cache first
+      // Check cache again (in case useEffect didn't run yet)
       const cachedImages = getCachedImages();
+      console.log('🔍 Cache check result:', {
+        hasCache: !!cachedImages,
+        cacheLength: cachedImages?.length || 0,
+        cacheFirstImage: cachedImages?.[0]?.src || 'none'
+      });
+      
       if (cachedImages && cachedImages.length > 0) {
         console.log(`🚀 Restored ${cachedImages.length} images from cache - no lag!`);
         setImages(cachedImages);
@@ -57,6 +72,8 @@ export const useImageLoader = (): UseImageLoaderReturn => {
         setLoading(false);
         return;
       }
+
+      console.log('❌ No cache found, loading fresh images...');
 
       // Start with initial batch for immediate loading
       const initialImages = await getInitialImages(INITIAL_BATCH_SIZE);
@@ -112,6 +129,7 @@ export const useImageLoader = (): UseImageLoaderReturn => {
   }, [
     getCachedImages, 
     cacheImages,
+    images.length,
     INITIAL_BATCH_SIZE,
     SECOND_BATCH_SIZE,
     FINAL_BATCH_SIZE,
