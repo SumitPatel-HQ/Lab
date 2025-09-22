@@ -19,6 +19,12 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
   const cardRectRef = useRef<DOMRect | null>(null);
   const [isVisible, setIsVisible] = useState(true);
   const [highQualityUrl, setHighQualityUrl] = useState<string>('');
+  
+  // Detect if device supports hover (desktop/mouse devices)
+  const supportsHover = useMemo(() => {
+    if (typeof window === 'undefined') return true;
+    return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  }, []);
 
   // Generate ultra-high-quality URL - NO COMPROMISE ON QUALITY
   useEffect(() => {
@@ -51,9 +57,9 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
     }
   }, []);
 
-  // Simple hover handler - only scale
+  // Simple hover handler - only scale (disabled on touch devices)
   const handleMouseMoveRaw = useCallback(() => {
-    if (!cardRef.current || !isVisible) return;
+    if (!cardRef.current || !isVisible || !supportsHover) return;
 
     // Apply scale transform only
     const card = cardRef.current;
@@ -67,11 +73,11 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
         img.style.filter = 'contrast(1.05) saturate(1.1)';
       });
     }
-  }, [isVisible]);
+  }, [isVisible, supportsHover]);
 
-  // Mouse enter handler - immediate response
+  // Mouse enter handler - immediate response (disabled on touch devices)
   const handleMouseEnter = useCallback(() => {
-    if (!cardRef.current) return;
+    if (!cardRef.current || !supportsHover) return;
     
     // Immediately apply hover state
     const card = cardRef.current;
@@ -84,12 +90,12 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
       parentDiv.style.setProperty('position', 'relative', 'important');
       parentDiv.style.setProperty('isolation', 'isolate', 'important');
     }
-  }, []);
+  }, [supportsHover]);
 
 
-  // Mouse leave handler
+  // Mouse leave handler (disabled on touch devices)
   const handleMouseLeave = useCallback(() => {
-    if (!cardRef.current) return;
+    if (!cardRef.current || !supportsHover) return;
     
     const parentDiv = cardRef.current.parentElement;
     if (parentDiv) {
@@ -110,7 +116,7 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
         img.style.imageRendering = '';
       });
     }
-  }, []);
+  }, [supportsHover]);
 
   // Create RAF-throttled mouse handler
   const handleMouseMove = useMemo(
@@ -125,5 +131,6 @@ export const useHoverAnimation = ({ imageUrl }: UseHoverAnimationProps) => {
     handleMouseEnter,
     handleMouseLeave,
     config: HOVER_CONFIG,
+    supportsHover,
   };
 };

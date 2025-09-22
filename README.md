@@ -1,14 +1,6 @@
 next problems ⚠️
-front end part
 
 remove useless comments and console logs
-
-mobile frontend config -> main and big
--> geuture navigation in hook folder
--> it swpiing modal container instead of image
-
-
-
 
 solved problems ✅
 all images loads properly✅
@@ -30,6 +22,7 @@ loading time is long✅
 image quality -> 100%✅
 proper hovering animation on images✅
 viewport of the gallery page - it is getting cut✅
+mobile frontend config -> main and big✅
 
 New feature
 use barba js

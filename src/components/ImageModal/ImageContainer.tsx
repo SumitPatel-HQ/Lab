@@ -3,14 +3,11 @@ import type { ImageKitImage as Image } from '../../services/ImageKit';
 import { getImageKitUrl, getPlaceholderUrl, getResponsiveSrcSet } from './constants';
 import { LoadingStates } from './LoadingStates';
 import { ImageTitle } from './ImageTitle';
-import { SwipeIndicators } from './SwipeIndicators';
 import type { ImageLoadingState } from '../../hooks/useImageState';
-import type { SwipeState } from '../../hooks/useGestures';
 
 interface ImageContainerProps {
   image: Image;
   loadingState: ImageLoadingState;
-  swipeState: SwipeState;
   imageTransform: string;
   imageTransition: string;
   imageShadow: string;
@@ -39,7 +36,6 @@ interface ImageContainerProps {
 export const ImageContainer: React.FC<ImageContainerProps> = React.memo(({
   image,
   loadingState,
-  swipeState,
   imageTransform,
   imageTransition,
   imageShadow,
@@ -130,7 +126,6 @@ export const ImageContainer: React.FC<ImageContainerProps> = React.memo(({
       </div>
       
       <ImageTitle title={image.title} />
-      <SwipeIndicators swipeDirection={swipeState.direction} isSwiping={swipeState.isSwiping} />
     </div>
   );
 });

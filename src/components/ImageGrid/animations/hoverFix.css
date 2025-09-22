@@ -14,9 +14,12 @@
   overflow: visible !important;
 }
 
-.hover-animation-container:hover {
-  z-index: 99999 !important;
-  isolation: isolate !important;
+/* Only apply hover effects on devices that support hover (desktop) */
+@media (hover: hover) and (pointer: fine) {
+  .hover-animation-container:hover {
+    z-index: 99999 !important;
+    isolation: isolate !important;
+  }
 }
 
 /* CSS-driven animations for better performance */
@@ -37,12 +40,14 @@
   overflow: hidden;
 }
 
-/* Enhanced hover state */
-.hover-card[data-hovering="true"] {
-  transform: scale(var(--scale));
-  box-shadow: 0 10px 25px -5px var(--shadow-color), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+/* Enhanced hover state - only on hover-capable devices */
+@media (hover: hover) and (pointer: fine) {
+  .hover-card[data-hovering="true"] {
+    transform: scale(var(--scale));
+    box-shadow: 0 10px 25px -5px var(--shadow-color), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 /* Smooth exit animation */
@@ -51,25 +56,23 @@
               box-shadow var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* CSS-driven overlay animation */
+/* CSS-driven overlay animation - only on hover-capable devices */
 .hover-overlay {
   opacity: 0;
   transition: opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.hover-card[data-hovering="true"] .hover-overlay {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .hover-card[data-hovering="true"] .hover-overlay {
+    opacity: 1;
+  }
 }
 
-/* CSS-driven title animation */
+/* CSS-driven title animation - only on hover-capable devices */
 .hover-title-container {
   transform: translateY(100%);
   transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1),
               opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.hover-card[data-hovering="true"] .hover-title-container {
-  transform: translateY(0);
 }
 
 .hover-title-text {
@@ -77,8 +80,14 @@
   transition: opacity var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.hover-card[data-hovering="true"] .hover-title-text {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .hover-card[data-hovering="true"] .hover-title-container {
+    transform: translateY(0);
+  }
+
+  .hover-card[data-hovering="true"] .hover-title-text {
+    opacity: 1;
+  }
 }
 
 /* Ensure grid items don't create stacking context issues */
@@ -109,9 +118,11 @@
 
 
 
-/* Force z-index for hovered items to break out of any stacking context */
-.hover-animation-container:hover {
-  transform: translateZ(0) !important;
+/* Force z-index for hovered items to break out of any stacking context - only on hover-capable devices */
+@media (hover: hover) and (pointer: fine) {
+  .hover-animation-container:hover {
+    transform: translateZ(0) !important;
+  }
 }
 
 /* Image quality improvements for scaling */
@@ -125,12 +136,14 @@
   will-change: transform;
 }
 
-/* High-quality scaling for hovered images */
-.hover-animation-container:hover img {
-  image-rendering: high-quality;
-  image-rendering: -webkit-optimize-contrast;
-  filter: contrast(1.05) saturate(1.1) sharpen(0.1);
-  transform: translateZ(0) scale(var(--hover-scale, 1));
+/* High-quality scaling for hovered images - only on hover-capable devices */
+@media (hover: hover) and (pointer: fine) {
+  .hover-animation-container:hover img {
+    image-rendering: high-quality;
+    image-rendering: -webkit-optimize-contrast;
+    filter: contrast(1.05) saturate(1.1) sharpen(0.1);
+    transform: translateZ(0) scale(var(--hover-scale, 1));
+  }
 }
 
 /* Parallax background quality improvements */
@@ -150,28 +163,34 @@
   backface-visibility: hidden;
 }
 
-/* Ultra high-quality image rendering for hover state */
-.hover-animation-container:hover .react-parallax-bgimage {
-  image-rendering: -webkit-optimize-contrast !important;
-  image-rendering: optimize-contrast !important;
-  image-rendering: crisp-edges !important;
-  -ms-interpolation-mode: bicubic !important;
-  filter: contrast(1.02) saturate(1.02) !important;
-  transform: translateZ(0) !important;
+/* Ultra high-quality image rendering for hover state - only on hover-capable devices */
+@media (hover: hover) and (pointer: fine) {
+  .hover-animation-container:hover .react-parallax-bgimage {
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+    -ms-interpolation-mode: bicubic !important;
+    filter: contrast(1.02) saturate(1.02) !important;
+    transform: translateZ(0) !important;
+  }
 }
 
-/* Force sub-pixel rendering for sharp edges */
-.hover-animation-container:hover {
-  -webkit-font-smoothing: subpixel-antialiased !important;
-  -moz-osx-font-smoothing: auto !important;
+/* Force sub-pixel rendering for sharp edges - only on hover-capable devices */
+@media (hover: hover) and (pointer: fine) {
+  .hover-animation-container:hover {
+    -webkit-font-smoothing: subpixel-antialiased !important;
+    -moz-osx-font-smoothing: auto !important;
+  }
 }
 
-/* Ensure all child images maintain quality during scaling */
-.hover-animation-container:hover img,
-.hover-animation-container:hover picture,
-.hover-animation-container:hover source {
-  image-rendering: -webkit-optimize-contrast !important;
-  image-rendering: crisp-edges !important;
-  -ms-interpolation-mode: bicubic !important;
-  transform: translateZ(0) !important;
+/* Ensure all child images maintain quality during scaling - only on hover-capable devices */
+@media (hover: hover) and (pointer: fine) {
+  .hover-animation-container:hover img,
+  .hover-animation-container:hover picture,
+  .hover-animation-container:hover source {
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+    -ms-interpolation-mode: bicubic !important;
+    transform: translateZ(0) !important;
+  }
 }

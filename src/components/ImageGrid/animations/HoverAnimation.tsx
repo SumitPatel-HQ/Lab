@@ -21,11 +21,11 @@ const HoverAnimation: React.FC<HoverAnimationProps> = memo(({
 }) => {
   const {
     cardRef,
-    highQualityUrl,
     handleMouseMove,
     handleMouseEnter,
     handleMouseLeave,
-    config
+    config,
+    supportsHover
   } = useHoverAnimation({ imageUrl });
 
   return (
@@ -37,9 +37,9 @@ const HoverAnimation: React.FC<HoverAnimationProps> = memo(({
       <div
         ref={cardRef}
         className="hover-card relative overflow-hidden rounded-lg"
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onMouseMove={supportsHover ? handleMouseMove : undefined}
+        onMouseEnter={supportsHover ? handleMouseEnter : undefined}
+        onMouseLeave={supportsHover ? handleMouseLeave : undefined}
         style={{
           '--transition-speed': `${config.TRANSITION_SPEED}s`,
           '--shadow-color': config.SHADOW_COLOR,

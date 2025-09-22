@@ -114,7 +114,6 @@ const ImageModal: React.FC<ImageModalProps> = React.memo(({
         <ImageContainer
           image={image}
           loadingState={loadingState}
-          swipeState={swipeState}
           imageTransform={transform.imageTransform}
           imageTransition={transform.imageTransition}
           imageShadow={transform.imageShadow}
