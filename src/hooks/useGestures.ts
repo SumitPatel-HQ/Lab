@@ -39,6 +39,7 @@ export const useGestures = ({ onSwipeComplete, onDismiss, scale = 1 }: UseGestur
   const lastTouchTimeRef = useRef<number | null>(null);
   const lastTouchYRef = useRef<number | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const gestureLockedRef = useRef<'swipe' | 'drag' | null>(null);
 
   const cancelAnimation = useCallback(() => {
     if (animationFrameIdRef.current) {
@@ -92,6 +93,8 @@ export const useGestures = ({ onSwipeComplete, onDismiss, scale = 1 }: UseGestur
       if (progress < 1) {
         animationFrameIdRef.current = requestAnimationFrame(animate);
       } else {
+        // Reset swipe state after animation completion
+        setSwipeState(prev => ({ ...prev, offset: 0, direction: null, isSwiping: false }));
         cancelAnimation();
       }
     };
@@ -162,9 +165,13 @@ export const useGestures = ({ onSwipeComplete, onDismiss, scale = 1 }: UseGestur
       lastTouchYRef.current = e.touches[0].clientY;
       
       setDragState(prev => ({ ...prev, isDragging: false, velocity: 0 }));
-      setSwipeState(prev => ({ ...prev, isSwiping: false }));
+      setSwipeState(prev => ({ ...prev, isSwiping: false, offset: 0, direction: null }));
+      
+      // Reset gesture lock and cancel current animations on new touch
+      gestureLockedRef.current = null;
+      cancelAnimation();
     }
-  }, []);
+  }, [cancelAnimation]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1 || scale > 1) return;
@@ -175,12 +182,21 @@ export const useGestures = ({ onSwipeComplete, onDismiss, scale = 1 }: UseGestur
     const deltaX = currentX - touchStartXRef.current;
     const deltaY = currentY - touchStartYRef.current;
     
-    // Determine gesture type if not already determined
-    if (!swipeState.isSwiping && !dragState.isDragging) {
-      if (Math.abs(deltaY) > Math.abs(deltaX) * 1.2) {
-        setDragState(prev => ({ ...prev, isDragging: true }));
-      } else if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+    // More strict threshold for better gesture differentiation
+    const MIN_MOVE_THRESHOLD = 10;
+    const GESTURE_RATIO_THRESHOLD = 1.5; // More strict ratio for better differentiation
+    
+    // Determine gesture type if not already determined and not locked
+    if (!swipeState.isSwiping && !dragState.isDragging && !gestureLockedRef.current) {
+      if (Math.abs(deltaY) > MIN_MOVE_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX) * GESTURE_RATIO_THRESHOLD) {
+        // Only allow vertical drag for downward movement (preserve drag-to-close)
+        if (deltaY > 0) {
+          setDragState(prev => ({ ...prev, isDragging: true }));
+          gestureLockedRef.current = 'drag';
+        }
+      } else if (Math.abs(deltaX) > MIN_MOVE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * GESTURE_RATIO_THRESHOLD) {
         setSwipeState(prev => ({ ...prev, isSwiping: true }));
+        gestureLockedRef.current = 'swipe';
       }
     }
     
@@ -201,19 +217,27 @@ export const useGestures = ({ onSwipeComplete, onDismiss, scale = 1 }: UseGestur
       
       lastTouchYRef.current = currentY;
       lastTouchTimeRef.current = performance.now();
-      e.preventDefault();
+      // Note: Using touchAction: 'none' in CSS instead of preventDefault
     } else if (swipeState.isSwiping) {
-      const resistedDeltaX = deltaX * MODAL_CONFIG.SWIPE.RESISTANCE;
+      // Improve resistance for better mobile feel
+      const resistanceMultiplier = Math.abs(deltaX) > 50 ? 0.6 : 0.8;
+      const resistedDeltaX = deltaX * MODAL_CONFIG.SWIPE.RESISTANCE * resistanceMultiplier;
+      
+      // More stable direction detection to prevent flickering
+      const DIRECTION_THRESHOLD = 15;
+      let newDirection: 'left' | 'right' | null = null;
+      
+      if (Math.abs(deltaX) > DIRECTION_THRESHOLD) {
+        newDirection = deltaX > 0 ? 'right' : 'left';
+      }
       
       setSwipeState(prev => ({
         ...prev,
         offset: resistedDeltaX,
-        direction: deltaX > 10 ? 'right' : deltaX < -10 ? 'left' : null,
+        direction: newDirection,
       }));
       
-      if (Math.abs(deltaX) > 10) {
-        e.preventDefault();
-      }
+      // Note: Using touchAction: 'none' in CSS instead of preventDefault to avoid passive event issues
     }
   }, [scale, swipeState.isSwiping, dragState.isDragging]);
 
@@ -233,31 +257,39 @@ export const useGestures = ({ onSwipeComplete, onDismiss, scale = 1 }: UseGestur
       
       const velocity = Math.abs(deltaX) / touchDuration;
       const isQuickSwipe = velocity > MODAL_CONFIG.SWIPE.VELOCITY_THRESHOLD;
+      
+      // More mobile-friendly threshold - reduce required distance for swipe
+      const baseThreshold = Math.min(window.innerWidth * 0.15, MODAL_CONFIG.SWIPE.THRESHOLD);
       const effectiveThreshold = isQuickSwipe ? 
-        MODAL_CONFIG.SWIPE.THRESHOLD * 0.7 : 
-        MODAL_CONFIG.SWIPE.THRESHOLD;
+        baseThreshold * 0.5 : 
+        baseThreshold;
       
       if (Math.abs(deltaX) >= effectiveThreshold || isQuickSwipe) {
         const direction = deltaX > 0 ? 'right' : 'left';
-        animateSwipeCompletion(direction);
         
-        setTimeout(() => {
-          if (onSwipeComplete) {
-            onSwipeComplete(direction);
-          }
-        }, 100);
+        // Execute callback first, then animate
+        if (onSwipeComplete) {
+          onSwipeComplete(direction);
+        }
+        
+        // Animate the swipe completion
+        animateSwipeCompletion(direction);
       } else {
         animateSwipeReset();
       }
     }
     
-    // Reset touch tracking
+    // Reset touch tracking and clear all states immediately
     touchStartXRef.current = null;
     touchStartYRef.current = null;
     touchStartTimeRef.current = null;
     lastTouchYRef.current = null;
     lastTouchTimeRef.current = null;
-    setSwipeState(prev => ({ ...prev, isSwiping: false }));
+    gestureLockedRef.current = null;
+    
+    // Clear states immediately without waiting for animations
+    setSwipeState({ isSwiping: false, direction: null, offset: 0 });
+    setDragState(prev => ({ ...prev, isDragging: false }));
   }, [
     dragState.isDragging, 
     dragState.velocity, 

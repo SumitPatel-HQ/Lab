@@ -5,7 +5,7 @@ remove useless comments and console logs
 
 mobile frontend config -> main and big
 -> geuture navigation in hook folder
--> Proper Modal container when clicked on image
+-> it swpiing modal container instead of image
 
 
 

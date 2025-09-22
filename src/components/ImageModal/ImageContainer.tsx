@@ -66,7 +66,10 @@ export const ImageContainer: React.FC<ImageContainerProps> = React.memo(({
       onMouseLeave={mouseHandlers.onMouseLeave}
       style={{
         willChange: 'transform',
-        userSelect: 'none'
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        touchAction: 'none' // Disable all default touch behaviors
       }}
     >
       <div 
@@ -127,7 +130,7 @@ export const ImageContainer: React.FC<ImageContainerProps> = React.memo(({
       </div>
       
       <ImageTitle title={image.title} />
-      <SwipeIndicators swipeDirection={swipeState.direction} />
+      <SwipeIndicators swipeDirection={swipeState.direction} isSwiping={swipeState.isSwiping} />
     </div>
   );
 });

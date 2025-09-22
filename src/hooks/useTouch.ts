@@ -19,7 +19,7 @@ interface TouchHandlerHandlers {
   onTouchEnd: () => void;
 }
 
-const SWIPE_THRESHOLD = 10;
+const SWIPE_THRESHOLD = 0;
 const VELOCITY_THRESHOLD = 0.02;
 const SWIPE_RESISTANCE = 0.2;
 const SPRING_ANIMATION_DURATION = 100;

@@ -41,7 +41,7 @@ const ImageModal: React.FC<ImageModalProps> = React.memo(({
   const { swipeState, dragState, touchHandlers, cleanup } = useGestures({
     onSwipeComplete: handleSwipeComplete,
     onDismiss: onClose,
-    scale: 1, // Will be updated with zoom state later if needed
+ // Will be updated with zoom state later if needed
   });
 
   const transform = useTransform({
@@ -87,6 +87,12 @@ const ImageModal: React.FC<ImageModalProps> = React.memo(({
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-[15px]"
       onClick={handleBackgroundClick}
+      style={{ 
+        touchAction: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+      }}
     >
       <div className="absolute inset-0 animate-modal-in" />
       
@@ -102,6 +108,7 @@ const ImageModal: React.FC<ImageModalProps> = React.memo(({
           onClose={onClose}
           onPrev={onPrev}
           onNext={onNext}
+          isSwiping={swipeState.isSwiping}
         />
         
         <ImageContainer

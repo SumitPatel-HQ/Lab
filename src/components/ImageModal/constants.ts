@@ -13,9 +13,9 @@ export const MODAL_CONFIG = {
   
   // Touch and swipe
   SWIPE: {
-    THRESHOLD: 80,
-    RESISTANCE: 0.4,
-    VELOCITY_THRESHOLD: 0.5,
+    THRESHOLD: 60, // Reduced for better mobile accessibility
+    RESISTANCE: 0.5, // Slightly increased resistance for better feel
+    VELOCITY_THRESHOLD: 0.3, // Reduced for more sensitive touch detection
   },
   
   // Dismiss gesture
