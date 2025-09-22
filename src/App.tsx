@@ -7,7 +7,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Set your password here - current password: 2000
-  const PASSWORD = "";
+  const PASSWORD = "2730";
   
   // Use the security protection hook
   const { isBlurred, unblur, blurClassName } = useSecurityProtection({
@@ -41,7 +41,14 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-gray-900 dark:bg-gray-900 ${isBlurred ? blurClassName : ''}`}>
-    <Gallery />
+    {!isAuthenticated ? (
+        <PasswordProtection 
+          onAuthenticated={handleAuthentication} 
+          correctPassword={PASSWORD} 
+        />
+      ) : (
+        <Gallery />
+      )}
     </div>
   );
 }
