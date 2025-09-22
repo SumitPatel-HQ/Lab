@@ -8,14 +8,19 @@ const { DEFAULT_IMAGE_WIDTH, DEFAULT_IMAGE_HEIGHT, DEFAULT_CATEGORY } = GALLERY_
 export const createImageObject = async (imageNumber: number, imagePath: string): Promise<ImageKitImage> => {
   const metadata = await getImageMetadata(imagePath);
   
+  // Import ImageKit functions for proper URL generation
+  const { getOptimizedImageUrl, getOptimalQuality, getDeviceType } = await import('../../services/ImageKit/config');
+  const deviceType = getDeviceType();
+  
   return {
     id: imageNumber.toString(),
     title: 'ImaginaLab',
-    src: imagePath,
+    src: getOptimizedImageUrl(imagePath, getOptimalQuality('thumbnail', deviceType)),
     ratio: metadata.ratio,
     category: DEFAULT_CATEGORY,
     width: DEFAULT_IMAGE_WIDTH,
-    height: DEFAULT_IMAGE_HEIGHT
+    height: DEFAULT_IMAGE_HEIGHT,
+    loaded: false
   };
 };
 

@@ -35,8 +35,7 @@ export const useGallery = ({
     totalAvailableImages,
     loadImages,
     loadAllImagesWithSmartDetection,
-    setTotalAvailableImages,
-    initializeTotalFromCache
+    setTotalAvailableImages
   } = useImageLoader();
 
   const { shuffleLoading, randomImage: randomImageFn } = useRandomImage(setTotalAvailableImages);
@@ -66,9 +65,6 @@ export const useGallery = ({
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     
-    // Initialize total available images from cache
-    initializeTotalFromCache();
-    
     // Load images
     loadImages().then((cleanupFn) => {
       cleanup = cleanupFn;
@@ -77,7 +73,7 @@ export const useGallery = ({
     return () => {
       if (cleanup) cleanup();
     };
-  }, [loadImages, initializeTotalFromCache]);
+  }, [loadImages]);
 
   return {
     images,

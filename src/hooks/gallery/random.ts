@@ -22,6 +22,12 @@ export const useRandomImage = (
   ): Promise<{ index: number; images: ImageKitImage[] } | undefined> => {
     if (shuffleLoading) return undefined;
     
+    // Check if we have images to work with
+    if (images.length === 0) {
+      console.warn('⚠️ No images available for shuffle');
+      return undefined;
+    }
+    
     setShuffleLoading(true);
     
     try {
@@ -30,12 +36,26 @@ export const useRandomImage = (
       
       if (!imageRange) {
         console.log('🔍 Detecting actual image range for true random shuffle...');
-        const { findImageRange } = await import('../../services/ImageKit/discovery');
-        imageRange = await findImageRange();
-        cacheImageRange(imageRange);
-        console.log(`📊 Found range: 1 to ${imageRange.max} (${imageRange.max} total images)`);
+        try {
+          const { findImageRange } = await import('../../services/ImageKit/discovery');
+          imageRange = await findImageRange();
+          cacheImageRange(imageRange);
+          console.log(`📊 Found range: 1 to ${imageRange.max} (${imageRange.max} total images)`);
+        } catch (rangeError) {
+          console.error('❌ Failed to detect image range:', rangeError);
+          // Fallback: use current images length as estimate
+          imageRange = { max: Math.max(100, images.length * 2) };
+          console.log(`🔄 Using fallback range: 1 to ${imageRange.max} (estimated)`);
+        }
       } else {
         console.log(`💾 Using cached range: 1 to ${imageRange.max} (${imageRange.max} images)`);
+      }
+      
+      // Validate image range
+      if (!imageRange || imageRange.max < 1) {
+        console.error('❌ Invalid image range, cannot shuffle');
+        setShuffleLoading(false);
+        return undefined;
       }
       
       setTotalAvailableImages(imageRange.max);
@@ -70,6 +90,7 @@ export const useRandomImage = (
         return randomImage(images, currentIndex); // Retry
       }
       
+      // Create and add image
       // Create and add image
       console.log(`🔍 Getting metadata for random image: ${imagePath}`);
       const randomImageObj = await createImageObject(randomNumber, imagePath);

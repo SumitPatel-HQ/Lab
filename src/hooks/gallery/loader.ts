@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { 
   getAllImages, 
   getAllImagesWithRangeDetection, 
@@ -6,7 +6,6 @@ import {
   getInitialImages, 
   type ImageKitImage 
 } from '../../services/ImageKit';
-import { useImageCache } from './cache';
 import { GALLERY_CONFIG } from './config';
 
 export interface UseImageLoaderReturn {
@@ -16,27 +15,12 @@ export interface UseImageLoaderReturn {
   loadImages: () => Promise<(() => void) | undefined>;
   loadAllImagesWithSmartDetection: () => Promise<void>;
   setTotalAvailableImages: (count: number) => void;
-  initializeTotalFromCache: () => void;
 }
 
 export const useImageLoader = (): UseImageLoaderReturn => {
   const [images, setImages] = useState<ImageKitImage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Start with loading = true to show loading screen initially
   const [totalAvailableImages, setTotalAvailableImages] = useState<number>(0);
-  
-  const imagesLoaded = useRef(false);
-  const { getCachedImages, cacheImages, getCachedImageRange } = useImageCache();
-
-  // Initialize images from cache immediately to prevent loading flash
-  useEffect(() => {
-    const cachedImages = getCachedImages();
-    if (cachedImages && cachedImages.length > 0) {
-      setImages(cachedImages);
-      setLoading(false);
-      imagesLoaded.current = true;
-      console.log(`🚀 Early cache restore: ${cachedImages.length} images`);
-    }
-  }, [getCachedImages]);
 
   const {
     INITIAL_BATCH_SIZE,
@@ -46,54 +30,34 @@ export const useImageLoader = (): UseImageLoaderReturn => {
     FINAL_BATCH_DELAY
   } = GALLERY_CONFIG;
 
-  // Load images with progressive batching
+  // Load images with progressive batching - NO CACHE
   const loadImages = useCallback(async () => {
     try {
-      // If images are already loaded from cache, don't reload
-      if (imagesLoaded.current && images.length > 0) {
-        console.log('✅ Images already loaded from cache, skipping...');
+      // Skip if we already have images
+      if (images.length > 0) {
+        console.log('✅ Images already loaded, skipping...');
         return;
       }
       
       setLoading(true);
-      
-      // Check cache again (in case useEffect didn't run yet)
-      const cachedImages = getCachedImages();
-      console.log('🔍 Cache check result:', {
-        hasCache: !!cachedImages,
-        cacheLength: cachedImages?.length || 0,
-        cacheFirstImage: cachedImages?.[0]?.src || 'none'
-      });
-      
-      if (cachedImages && cachedImages.length > 0) {
-        console.log(`🚀 Restored ${cachedImages.length} images from cache - no lag!`);
-        setImages(cachedImages);
-        imagesLoaded.current = true;
-        setLoading(false);
-        return;
-      }
-
-      console.log('❌ No cache found, loading fresh images...');
+      console.log('� Loading fresh images...');
 
       // Start with initial batch for immediate loading
       const initialImages = await getInitialImages(INITIAL_BATCH_SIZE);
       setImages(initialImages);
-      imagesLoaded.current = true;
       console.log(`Loaded ${initialImages.length} images for immediate display`);
-      
-      // Cache initial images immediately
-      cacheImages(initialImages);
       
       // Load more images progressively with cleanup tracking
       const timeoutIds: number[] = [];
+      let currentBatchSize = initialImages.length;
       
       const timeout1 = window.setTimeout(async () => {
         try {
           const batch2 = await getAllImages(SECOND_BATCH_SIZE);
-          if (batch2.length > initialImages.length) {
+          if (batch2.length > currentBatchSize) {
             setImages(batch2);
+            currentBatchSize = batch2.length;
             console.log(`Expanded to ${batch2.length} total images`);
-            cacheImages(batch2);
           }
         } catch (error) {
           console.warn('Error loading additional images:', error);
@@ -105,10 +69,9 @@ export const useImageLoader = (): UseImageLoaderReturn => {
       const timeout2 = window.setTimeout(async () => {
         try {
           const batch3 = await getAllImages(FINAL_BATCH_SIZE);
-          if (batch3.length > SECOND_BATCH_SIZE) {
+          if (batch3.length > currentBatchSize) {
             setImages(batch3);
             console.log(`Further expanded to ${batch3.length} total images`);
-            cacheImages(batch3);
           }
         } catch (error) {
           console.warn('Error loading final batch:', error);
@@ -127,8 +90,6 @@ export const useImageLoader = (): UseImageLoaderReturn => {
       setLoading(false);
     }
   }, [
-    getCachedImages, 
-    cacheImages,
     images.length,
     INITIAL_BATCH_SIZE,
     SECOND_BATCH_SIZE,
@@ -139,8 +100,6 @@ export const useImageLoader = (): UseImageLoaderReturn => {
 
   // Load all images using smart range detection
   const loadAllImagesWithSmartDetection = useCallback(async () => {
-    if (loading) return;
-    
     try {
       setLoading(true);
       console.log('🚀 Starting smart image detection...');
@@ -157,15 +116,7 @@ export const useImageLoader = (): UseImageLoaderReturn => {
     } finally {
       setLoading(false);
     }
-  }, [loading]);
-
-  // Initialize total available images from cache
-  const initializeTotalFromCache = useCallback(() => {
-    const cachedRange = getCachedImageRange();
-    if (cachedRange) {
-      setTotalAvailableImages(cachedRange.max);
-    }
-  }, [getCachedImageRange]);
+  }, []);
 
   return {
     images,
@@ -173,7 +124,6 @@ export const useImageLoader = (): UseImageLoaderReturn => {
     totalAvailableImages,
     loadImages,
     loadAllImagesWithSmartDetection,
-    setTotalAvailableImages,
-    initializeTotalFromCache
+    setTotalAvailableImages
   };
 };
