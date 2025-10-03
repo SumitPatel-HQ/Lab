@@ -1,8 +1,28 @@
 // Image discovery algorithms
 import type { ImageRange } from './types';
 import { CONFIG, getImageKitPath, testImageExists } from './config';
+import { getAllFilesFromFolder } from './api';
 
-// Smart discovery using binary search to find actual range
+// NEW: API-based range detection - Get actual file count from ImageKit API
+export const findImageRangeFromAPI = async (): Promise<ImageRange> => {
+  console.log('🔍 Using ImageKit API for range detection...');
+  
+  try {
+    const files = await getAllFilesFromFolder(import.meta.env.VITE_IMAGEKIT_PATH_PREFIX || '/AP/');
+    console.log(`✅ Found ${files.length} files from ImageKit API`);
+    
+    return {
+      min: 1,
+      max: files.length
+    };
+  } catch (error) {
+    console.error('❌ Error in API-based range detection:', error);
+    console.log('⚠️ Falling back to legacy binary search...');
+    return findImageRange();
+  }
+};
+
+// Smart discovery using binary search to find actual range (LEGACY)
 export const findImageRange = async (): Promise<ImageRange> => {
   console.log('🔍 Starting range detection...');
   

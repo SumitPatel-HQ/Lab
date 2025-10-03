@@ -1,6 +1,8 @@
 next problems ⚠️
 
 remove useless comments and console logs
+cache logs 
+shuffle issues
 
 solved problems ✅
 all images loads properly✅
@@ -23,6 +25,9 @@ image quality -> 100%✅
 proper hovering animation on images✅
 viewport of the gallery page - it is getting cut✅
 mobile frontend config -> main and big✅
+fix authentication✅
+fixed the url endpoint 
+fixed where system was taking fixed numbered files names and .jpg file only ✅
 
 New feature
 use barba js

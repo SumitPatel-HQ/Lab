@@ -58,8 +58,20 @@ export const createImageTransformations = {
 };
 
 // Generate ImageKit image path
-export const getImageKitPath = (imageNumber: number): string => {
-  return `${IMAGEKIT_PATH_PREFIX}${imageNumber}.jpg`;
+// Now supports full filenames with any extension (e.g., "photo-2024.jpg", "image_001.png")
+export const getImageKitPath = (filenameOrNumber: string | number): string => {
+  // If it's a number, use legacy format (backward compatibility)
+  if (typeof filenameOrNumber === 'number') {
+    return `${IMAGEKIT_PATH_PREFIX}${filenameOrNumber}.jpg`;
+  }
+  
+  // If it's already a full path, return as-is
+  if (filenameOrNumber.startsWith(IMAGEKIT_PATH_PREFIX)) {
+    return filenameOrNumber;
+  }
+  
+  // Otherwise, append the prefix to the filename
+  return `${IMAGEKIT_PATH_PREFIX}${filenameOrNumber}`;
 };
 
 // Generate optimized image URL with transformations

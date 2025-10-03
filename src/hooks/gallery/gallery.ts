@@ -63,16 +63,8 @@ export const useGallery = ({
 
   // Initialize on mount
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    
-    // Load images
-    loadImages().then((cleanupFn) => {
-      cleanup = cleanupFn;
-    });
-    
-    return () => {
-      if (cleanup) cleanup();
-    };
+    // Load images (no cleanup needed with API-based discovery)
+    loadImages();
   }, [loadImages]);
 
   return {

@@ -19,13 +19,11 @@ interface MainGalleryViewProps {
   visibleIndicators: number[];
   loading: boolean;
   galleryRef: React.RefObject<HTMLDivElement | null>;
-  modalRef: React.RefObject<HTMLDivElement | null>;
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchMove: (e: React.TouchEvent) => void;
   onTouchEnd: (e: React.TouchEvent) => void;
   openImageModal: () => void;
   closeImageModal: () => void;
-  handleModalBackdropClick: (e: React.MouseEvent) => void;
   prevImage: () => void;
   nextImage: () => void;
   handleRandomImage: () => void;
@@ -45,13 +43,11 @@ export const MainGalleryView: React.FC<MainGalleryViewProps> = ({
   visibleIndicators,
   loading,
   galleryRef,
-  modalRef,
   onTouchStart,
   onTouchMove,
   onTouchEnd,
   openImageModal,
   closeImageModal,
-  handleModalBackdropClick,
   prevImage,
   nextImage,
   handleRandomImage,
@@ -122,24 +118,17 @@ export const MainGalleryView: React.FC<MainGalleryViewProps> = ({
     {/* Image Modal */}
     <AnimatePresence>
       {showModal && (
-        <div 
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center"
-          onClick={handleModalBackdropClick}
-        >
-          <div ref={modalRef}>
-            <ImageModal
-              image={images[currentIndex]}
-              onClose={closeImageModal}
-              onNext={nextImage}
-              onPrev={prevImage}
-              totalImages={images.length}
-              currentIndex={currentIndex}
-              enableTilt={!isMobile}
-              prevImage={adjacentImages.prevImage}
-              nextImage={adjacentImages.nextImage}
-            />
-          </div>
-        </div>
+        <ImageModal
+          image={images[currentIndex]}
+          onClose={closeImageModal}
+          onNext={nextImage}
+          onPrev={prevImage}
+          totalImages={images.length}
+          currentIndex={currentIndex}
+          enableTilt={!isMobile}
+          prevImage={adjacentImages.prevImage}
+          nextImage={adjacentImages.nextImage}
+        />
       )}
     </AnimatePresence>
   </div>

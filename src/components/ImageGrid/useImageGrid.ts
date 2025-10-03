@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAllImages, type ImageKitImage as Image } from '../../services/ImageKit';
+import { getAllImagesFromAPI, type ImageKitImage as Image } from '../../services/ImageKit';
 
 interface UseImageGridReturn {
   allImages: Image[];
@@ -23,9 +23,9 @@ export const useImageGrid = (initialImages: Image[]): UseImageGridReturn => {
     const loadAllImages = async () => {
       try {
         setIsInitialLoading(true);
-        console.log('🔍 Discovering all available images...');
-        const allDiscoveredImages = await getAllImages();
-        console.log(`✅ Found ${allDiscoveredImages.length} total images`);
+        console.log('🔍 Discovering all available images from API...');
+        const allDiscoveredImages = await getAllImagesFromAPI();
+        console.log(`✅ Found ${allDiscoveredImages.length} total images from API`);
         
         setAllImages(allDiscoveredImages);
         setVisibleImages(allDiscoveredImages.slice(0, INITIAL_LOAD));

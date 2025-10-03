@@ -42,13 +42,20 @@ export const MODAL_CONFIG = {
 
 // Helper function to get optimized modal image URL with adaptive quality
 export const getImageKitUrl = (src: string): string => {
+  console.log('🖼️ getImageKitUrl input:', src);
+  
   if (src.startsWith('http')) {
     // Extract the path from the URL
     const imagePath = src.split('?')[0].replace(IMAGEKIT_URL_ENDPOINT, '');
+    console.log('📍 Extracted path:', imagePath);
     // Use ultra-high quality for modal images
-    return getOptimizedImageUrl(imagePath, createImageTransformations.ultra(1600));
+    const finalUrl = getOptimizedImageUrl(imagePath, createImageTransformations.ultra(1600));
+    console.log('✅ Final modal URL:', finalUrl);
+    return finalUrl;
   }
-  return getOptimizedImageUrl(src, createImageTransformations.ultra(1600));
+  const finalUrl = getOptimizedImageUrl(src, createImageTransformations.ultra(1600));
+  console.log('✅ Final modal URL (no http):', finalUrl);
+  return finalUrl;
 };
 
 // Helper function to generate low-quality placeholder URL
@@ -59,15 +66,34 @@ export const getPlaceholderUrl = (src: string): string => {
 
 // Helper function to generate high-quality responsive image URLs with WebP
 export const getResponsiveSrcSet = (src: string): string => {
-  const imagePath = src.split('?')[0].replace(IMAGEKIT_URL_ENDPOINT, '');
+  console.log('📸 getResponsiveSrcSet input:', src);
   
-  return `
-    ${getOptimizedImageUrl(imagePath, 'tr=q-85,f-webp,w-640')} 640w,
-    ${getOptimizedImageUrl(imagePath, 'tr=q-88,f-webp,w-960')} 960w,
-    ${getOptimizedImageUrl(imagePath, 'tr=q-90,f-webp,w-1280')} 1280w,
-    ${getOptimizedImageUrl(imagePath, 'tr=q-93,f-webp,w-1920')} 1920w,
-    ${getOptimizedImageUrl(imagePath, 'tr=q-95,f-webp,w-2560')} 2560w
-  `.trim();
+  // Extract just the path part (remove endpoint if present, and remove query params)
+  let imagePath = src.split('?')[0];
+  
+  // Remove the endpoint if it's a full URL
+  if (imagePath.startsWith('http')) {
+    imagePath = imagePath.replace(IMAGEKIT_URL_ENDPOINT, '');
+  }
+  
+  // Ensure path starts with /
+  if (!imagePath.startsWith('/')) {
+    imagePath = '/' + imagePath;
+  }
+  
+  console.log('📍 Extracted path for srcset:', imagePath);
+  
+  const srcset = [
+    `${getOptimizedImageUrl(imagePath, 'tr=q-85,f-webp,w-640')} 640w`,
+    `${getOptimizedImageUrl(imagePath, 'tr=q-88,f-webp,w-960')} 960w`,
+    `${getOptimizedImageUrl(imagePath, 'tr=q-90,f-webp,w-1280')} 1280w`,
+    `${getOptimizedImageUrl(imagePath, 'tr=q-93,f-webp,w-1920')} 1920w`,
+    `${getOptimizedImageUrl(imagePath, 'tr=q-95,f-webp,w-2560')} 2560w`
+  ].join(', ');
+  
+  console.log('✅ Generated srcset:', srcset.substring(0, 200) + '...');
+  
+  return srcset;
 };
 
 // Easing functions

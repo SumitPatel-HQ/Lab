@@ -47,6 +47,15 @@ export const ImageContainer: React.FC<ImageContainerProps> = React.memo(({
   loadingHandlers,
 }) => {
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Debug: Log the image data
+  console.log('🖼️ ImageContainer rendering with image:', {
+    title: image.title,
+    src: image.src,
+    filePath: image.filePath,
+    fileName: image.fileName,
+    loadingState
+  });
 
   return (
     <div 
@@ -125,7 +134,7 @@ export const ImageContainer: React.FC<ImageContainerProps> = React.memo(({
         )}
       </div>
       
-      <ImageTitle title={image.title} />
+      <ImageTitle title="ImaginaLab" />
     </div>
   );
 });

@@ -1,4 +1,4 @@
-// Main ImageKit service - Clean public API (40 lines vs 597!)
+// Main ImageKit service - Clean public API with flexible file support
 import type { ImageKitImage } from './types';
 import { findImageRange, getEstimatedImageCount, getTotalImageCount } from './discovery';
 import { 
@@ -7,7 +7,8 @@ import {
   discoverImagesProgressively,
   getImageById,
   getImageWithRatio,
-  getPreloadedImage
+  getPreloadedImage,
+  discoverAllFilesFromAPI
 } from './loader';
 
 // Re-export cache functions
@@ -19,9 +20,26 @@ export type { ImageKitImage } from './types';
 // Re-export config
 export { IMAGEKIT_URL_ENDPOINT } from './config';
 
+// Re-export API functions
+export { getAllFilesFromFolder, isImageFile, isVideoFile, getSupportedFileTypes } from './api';
+
 // Main API functions
 
-// Get all images with smart range detection
+// NEW: Get all images using ImageKit API (supports any file type and filename)
+export const getAllImagesFromAPI = async (): Promise<ImageKitImage[]> => {
+  console.log('🚀 Fetching images from ImageKit API...');
+  
+  try {
+    const images = await discoverAllFilesFromAPI();
+    console.log(`✅ Successfully loaded ${images.length} images from API`);
+    return images;
+  } catch (error) {
+    console.error('Error fetching from API, falling back to legacy method:', error);
+    return getAllImagesWithRangeDetection();
+  }
+};
+
+// Get all images with smart range detection (LEGACY - backward compatibility)
 export const getAllImagesWithRangeDetection = async (): Promise<ImageKitImage[]> => {
   console.log('🔍 Detecting actual image range...');
   

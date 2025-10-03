@@ -17,7 +17,6 @@ export const useGalleryState = () => {
   const [showModal, setShowModal] = useState(false);
   
   const galleryRef = useRef<HTMLDivElement>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
 
   // Device and interaction hooks
   const isMobile = useMobileDetection();
@@ -71,12 +70,6 @@ export const useGalleryState = () => {
     }
   };
 
-  const handleModalBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      closeImageModal();
-    }
-  };
-
   // Keyboard navigation
   useKeyboardNavigation(showGrid, showModal, prevImage, nextImage, closeImageModal);
 
@@ -100,7 +93,6 @@ export const useGalleryState = () => {
     
     // Refs
     galleryRef,
-    modalRef,
     
     // Handlers
     onTouchStart,
@@ -110,7 +102,6 @@ export const useGalleryState = () => {
     openImageModal,
     closeImageModal,
     handleRandomImage,
-    handleModalBackdropClick,
     loadAllImagesWithSmartDetection,
     prevImage,
     nextImage,

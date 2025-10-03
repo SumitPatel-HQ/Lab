@@ -2,9 +2,11 @@
 import type { ImageKitImage, ImageMetadata, BatchResult } from './types';
 import { CONFIG, IMAGEKIT_URL_ENDPOINT, getImageKitPath, testImageExists, createImageTransformations, getOptimizedImageUrl, getDeviceType, getOptimalQuality } from './config';
 import { isImageLoaded, preloadImageKit } from './cache';
+import { getAllFilesFromFolder, getFileExtension, getFileNameWithoutExtension } from './api';
 
 // Enhanced image metadata extraction using optimized thumbnail
-export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata> => {
+// Now supports any file extension and preserves original filenames
+export const getImageMetadata = async (imagePath: string, fileName?: string): Promise<ImageMetadata> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -13,18 +15,29 @@ export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata
       // 3:2 = 1.5, 2:3 = 0.67, so use 1.0 as the clear threshold
       const aspectRatio = ratio >= 1.5 ? '3:2' : '2:3';
       
-      const filename = imagePath.split('/').pop()?.replace('.jpg', '').replace('.jpeg', '').replace('.png', '') || 'Unknown';
+      // Preserve original filename if provided, otherwise extract from path
+      const originalFileName = fileName || imagePath.split('/').pop() || 'Unknown';
+      const fileExt = getFileExtension(originalFileName);
+      const fileNameOnly = getFileNameWithoutExtension(originalFileName);
       
       resolve({
-        title: filename,
-        ratio: aspectRatio
+        title: fileNameOnly,
+        ratio: aspectRatio,
+        fileName: originalFileName,
+        fileType: fileExt
       });
     };
     img.onerror = () => {
       console.warn(`❌ Failed to load metadata for ${imagePath}`);
+      const originalFileName = fileName || imagePath.split('/').pop() || 'Unknown';
+      const fileExt = getFileExtension(originalFileName);
+      const fileNameOnly = getFileNameWithoutExtension(originalFileName);
+      
       resolve({
-        title: 'Unknown Image',
-        ratio: '2:3'
+        title: fileNameOnly,
+        ratio: '2:3',
+        fileName: originalFileName,
+        fileType: fileExt
       });
     };
     // Use ultra-fast tiny image for metadata detection
@@ -32,7 +45,65 @@ export const getImageMetadata = async (imagePath: string): Promise<ImageMetadata
   });
 };
 
-// Optimized discovery for large image sets
+// NEW: API-based discovery - Fetch all files from ImageKit using List Files API
+// This supports any file type and any filename (including special characters)
+export const discoverAllFilesFromAPI = async (): Promise<ImageKitImage[]> => {
+  console.log('🚀 Using ImageKit API to discover all files...');
+  
+  try {
+    const folderPath = import.meta.env.VITE_IMAGEKIT_PATH_PREFIX || '/AP/';
+    console.log(`📂 Fetching files from: ${folderPath}`);
+    
+    const files = await getAllFilesFromFolder(folderPath);
+    console.log(`✅ Found ${files.length} files from ImageKit API`);
+    
+    if (files.length === 0) {
+      console.warn('⚠️ No files found in the specified folder. Check your VITE_IMAGEKIT_PATH_PREFIX.');
+      return [];
+    }
+    
+    // Convert ImageKit files to ImageKitImage format
+    const images: ImageKitImage[] = [];
+    
+    for (const file of files) {
+      try {
+        // Use file dimensions from API if available, otherwise default
+        const ratio = (file.width && file.height) 
+          ? (file.width / file.height >= 1.5 ? '3:2' : '2:3')
+          : '2:3'; // Default ratio
+        
+        // IMPORTANT: Use file.url (properly encoded) instead of building from filePath
+        // The API returns a properly encoded URL that handles spaces and special characters
+        images.push({
+          id: file.fileId,
+          title: getFileNameWithoutExtension(file.name),
+          src: file.url, // Use the URL from API directly (already properly encoded)
+          ratio: ratio,
+          category: 'Imaginalab AI',
+          loaded: false,
+          fileId: file.fileId,
+          fileName: file.name,
+          fileType: getFileExtension(file.name),
+          filePath: file.filePath,
+          width: file.width,
+          height: file.height,
+        });
+      } catch (error) {
+        console.warn(`⚠️ Error processing file ${file.name}:`, error);
+      }
+    }
+    
+    console.log(`✅ Successfully processed ${images.length} images from API`);
+    return images;
+  } catch (error) {
+    console.error('❌ Error discovering files from API:', error);
+    console.log('⚠️ Falling back to legacy numeric discovery...');
+    // Fallback to old method if API fails
+    return discoverAvailableImages(100);
+  }
+};
+
+// Optimized discovery for large image sets (LEGACY - uses numeric guessing)
 export const discoverAvailableImages = async (limit: number = 10): Promise<ImageKitImage[]> => {
   const images: ImageKitImage[] = [];
   let consecutiveFailures = 0;
