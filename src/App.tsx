@@ -6,8 +6,8 @@ import useSecurityProtection from './hooks/useSecurity';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  // Set your password here - current password: 2000
-  const PASSWORD = "2730";
+  // Get password from environment variable
+  const PASSWORD = import.meta.env.VITE_PASSWORD_HERE;
   
   // Use the security protection hook
   const { isBlurred, unblur, blurClassName } = useSecurityProtection({

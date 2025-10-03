@@ -1,17 +1,4 @@
-/**
- * Gallery Hooks - Optimized and Modular
- * 
- * This module provides a complete gallery management system with:
- * - Progressive image loading with caching
- * - Smart random image selection
- * - Efficient image preloading
- * - Persistent cache management
- * 
- * Usage:
- * import { useGallery } from './hooks/gallery';
- * // or individual hooks:
- * import { useImageLoader, useRandomImage, useImagePreloader, useImageCache } from './hooks/gallery';
- */
+
 
 // Main gallery hook (optimized)
 export { useGallery } from './gallery';
