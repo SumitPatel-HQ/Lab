@@ -41,7 +41,16 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-gray-900 dark:bg-gray-900 ${isBlurred ? blurClassName : ''}`}>
-    <Gallery />
+   /*
+{!isAuthenticated ? (
+        <PasswordProtection 
+          onAuthenticated={handleAuthentication} 
+          correctPassword={PASSWORD} 
+        />
+      ) : (
+        <Gallery />
+      )}
+*/
     </div>
   );
 }
